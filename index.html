@@ -19,7 +19,6 @@
         .loader { border-top-color: #3b82f6; animation: spinner 1.5s linear infinite; }
         @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .tab-active { border-bottom: 3px solid #2563eb; color: #2563eb; font-weight: 700; }
-        /* Custom Scrollbar for better mobile feel */
         ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
     </style>
@@ -47,7 +46,7 @@
                 <i class="fas fa-exchange-alt mr-1.5"></i>Transaksi
             </button>
             <button onclick="switchTab('piutang')" id="tab-piutang" class="px-4 md:px-6 py-3 text-xs md:text-sm font-medium transition-all text-slate-500 hover:text-blue-600 whitespace-nowrap">
-                <i class="fas fa-hand-holding-usd mr-1.5"></i>Piutang
+                <i class="fas fa-hand-holding-usd mr-1.5"></i>Piutang (Aktif)
             </button>
             <button onclick="switchTab('stok')" id="tab-stok" class="px-4 md:px-6 py-3 text-xs md:text-sm font-medium transition-all text-slate-500 hover:text-blue-600 whitespace-nowrap">
                 <i class="fas fa-boxes mr-1.5"></i>Stok
@@ -104,9 +103,7 @@
                 <h3 class="font-bold text-slate-800 text-sm md:text-base">Detail Informasi</h3>
                 <button onclick="closeModal()" class="w-8 h-8 flex items-center justify-center bg-slate-200 rounded-full text-slate-600 hover:text-slate-900 transition-colors">&times;</button>
             </div>
-            <div id="modalBody" class="p-5 space-y-4 overflow-y-auto max-h-[70vh] md:max-h-[80vh]">
-                <!-- Konten dinamis -->
-            </div>
+            <div id="modalBody" class="p-5 space-y-4 overflow-y-auto max-h-[70vh] md:max-h-[80vh]"></div>
             <div class="px-5 py-4 border-t border-slate-100 bg-white text-right">
                 <button onclick="closeModal()" class="w-full md:w-auto bg-slate-100 hover:bg-slate-200 text-slate-700 px-6 py-2.5 rounded-xl font-bold text-sm transition-colors">Tutup</button>
             </div>
@@ -176,36 +173,27 @@
         }
 
         function calculateStats() {
-            let masuk = 0, keluar = 0, piutang = 0;
+            let masuk = 0, keluar = 0, piutangTotal = 0;
             db.transaksi.forEach(r => {
                 masuk += parseFloat(r["Masuk"]) || 0;
                 keluar += parseFloat(r["Keluar"]) || 0;
             });
             db.piutang.forEach(r => {
-                piutang += parseFloat(r["Sisa Piutang"]) || 0;
+                piutangTotal += parseFloat(r["Sisa Piutang"]) || 0;
             });
             document.getElementById('totalMasuk').innerText = formatIDR(masuk);
             document.getElementById('totalKeluar').innerText = formatIDR(keluar);
-            document.getElementById('totalPiutang').innerText = formatIDR(piutang);
+            document.getElementById('totalPiutang').innerText = formatIDR(piutangTotal);
         }
 
         function renderContent() {
             const head = document.getElementById('tableHead');
             if (currentTab === 'transaksi') {
-                head.innerHTML = `<tr>
-                    <th class="px-4 py-3">Waktu & Deskripsi</th>
-                    <th class="px-4 py-3 text-right">Nominal</th>
-                </tr>`;
+                head.innerHTML = `<tr><th class="px-4 py-3">Waktu & Deskripsi</th><th class="px-4 py-3 text-right">Nominal</th></tr>`;
             } else if (currentTab === 'piutang') {
-                head.innerHTML = `<tr>
-                    <th class="px-4 py-3">Pelanggan</th>
-                    <th class="px-4 py-3 text-right">Sisa Piutang</th>
-                </tr>`;
+                head.innerHTML = `<tr><th class="px-4 py-3">Pelanggan</th><th class="px-4 py-3 text-right">Sisa Piutang</th></tr>`;
             } else if (currentTab === 'stok') {
-                head.innerHTML = `<tr>
-                    <th class="px-4 py-3">Barang</th>
-                    <th class="px-4 py-3 text-center">Stok</th>
-                </tr>`;
+                head.innerHTML = `<tr><th class="px-4 py-3">Barang</th><th class="px-4 py-3 text-center">Stok</th></tr>`;
             }
             applyFilter();
         }
@@ -213,7 +201,17 @@
         function applyFilter() {
             const query = document.getElementById('searchInput').value.toLowerCase();
             const body = document.getElementById('tableBody');
-            const data = db[currentTab];
+            let data = db[currentTab];
+
+            // PENYARINGAN KHUSUS PIUTANG: Sembunyikan yang Sisa Piutang = 0 atau Status = Lunas
+            if (currentTab === 'piutang') {
+                data = data.filter(row => {
+                    const sisa = parseFloat(row["Sisa Piutang"]) || 0;
+                    const status = (row["Status"] || "").toLowerCase();
+                    return sisa > 0 && status !== 'lunas';
+                });
+            }
+
             const filtered = data.filter(row => Object.values(row).some(v => String(v).toLowerCase().includes(query)));
             body.innerHTML = '';
             document.getElementById('rowCounter').innerText = `${filtered.length} Data`;
@@ -358,10 +356,8 @@
             const modal = document.getElementById('detailModal');
             const content = document.getElementById('modalContent');
             const isMobile = window.innerWidth < 768;
-            
             if(isMobile) content.classList.add('translate-y-full');
             else content.classList.add('scale-95', 'opacity-0');
-            
             setTimeout(() => {
                 modal.classList.add('hidden');
             }, 250);
