@@ -11,16 +11,17 @@
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; -webkit-tap-highlight-color: transparent; }
         .card-shadow { box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
-        .table-container { max-height: calc(100vh - 440px); overflow-y: auto; }
+        .table-container { max-height: calc(100vh - 550px); overflow-y: auto; }
         @media (max-width: 640px) {
-            .table-container { max-height: calc(100vh - 480px); }
-            th, td { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
+            .table-container { max-height: calc(100vh - 620px); }
         }
         .loader { border-top-color: #3b82f6; animation: spinner 1.5s linear infinite; }
         @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .tab-active { border-bottom: 3px solid #2563eb; color: #2563eb; font-weight: 700; }
+        .filter-btn-active { background-color: #2563eb; color: white; border-color: #2563eb; }
         ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
     </style>
 </head>
 <body class="p-3 md:p-6">
@@ -33,34 +34,34 @@
                     <i class="fas fa-chart-line text-blue-600"></i>
                     ViP Enterprise
                 </h1>
-                <p class="text-slate-500 text-xs md:text-sm">Monitoring Transaksi, Piutang & Stok</p>
+                <p class="text-slate-500 text-xs md:text-sm font-medium">Monitoring Transaksi, Piutang & Stok</p>
             </div>
-            <button onclick="fetchAllData()" id="refreshBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-medium transition-all flex items-center justify-center gap-2 shadow-md active:scale-95 text-sm">
-                <i class="fas fa-sync-alt"></i> Sinkronisasi
+            <button onclick="fetchAllData()" id="refreshBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-md active:scale-95 text-sm">
+                <i class="fas fa-sync-alt"></i> Sinkronisasi Data
             </button>
         </header>
 
         <!-- Tab Navigation -->
         <div class="flex border-b border-slate-200 mb-5 bg-white rounded-t-xl px-2 overflow-x-auto no-scrollbar">
-            <button onclick="switchTab('transaksi')" id="tab-transaksi" class="px-4 md:px-6 py-3 text-xs md:text-sm font-medium transition-all tab-active whitespace-nowrap">
-                <i class="fas fa-exchange-alt mr-1.5"></i>Transaksi
+            <button onclick="switchTab('transaksi')" id="tab-transaksi" class="px-4 md:px-6 py-4 text-xs md:text-sm font-medium transition-all tab-active whitespace-nowrap">
+                <i class="fas fa-exchange-alt mr-2"></i>Transaksi
             </button>
-            <button onclick="switchTab('piutang')" id="tab-piutang" class="px-4 md:px-6 py-3 text-xs md:text-sm font-medium transition-all text-slate-500 hover:text-blue-600 whitespace-nowrap">
-                <i class="fas fa-hand-holding-usd mr-1.5"></i>Piutang (Aktif)
+            <button onclick="switchTab('piutang')" id="tab-piutang" class="px-4 md:px-6 py-4 text-xs md:text-sm font-medium transition-all text-slate-500 hover:text-blue-600 whitespace-nowrap">
+                <i class="fas fa-hand-holding-usd mr-2"></i>Piutang (Aktif)
             </button>
-            <button onclick="switchTab('stok')" id="tab-stok" class="px-4 md:px-6 py-3 text-xs md:text-sm font-medium transition-all text-slate-500 hover:text-blue-600 whitespace-nowrap">
-                <i class="fas fa-boxes mr-1.5"></i>Stok
+            <button onclick="switchTab('stok')" id="tab-stok" class="px-4 md:px-6 py-4 text-xs md:text-sm font-medium transition-all text-slate-500 hover:text-blue-600 whitespace-nowrap">
+                <i class="fas fa-boxes mr-2"></i>Stok Barang
             </button>
         </div>
 
         <!-- Dashboard Stats -->
         <div id="statsGrid" class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-5">
             <div class="bg-white p-4 rounded-xl card-shadow border-l-4 border-green-500">
-                <div class="text-[10px] font-bold text-slate-400 uppercase leading-tight mb-1">Pemasukan</div>
+                <div class="text-[10px] font-bold text-slate-400 uppercase leading-tight mb-1">Pendapatan Riil</div>
                 <div id="totalMasuk" class="text-sm md:text-lg font-bold text-slate-800 truncate">Rp 0</div>
             </div>
             <div class="bg-white p-4 rounded-xl card-shadow border-l-4 border-red-500">
-                <div class="text-[10px] font-bold text-slate-400 uppercase leading-tight mb-1">Pengeluaran</div>
+                <div class="text-[10px] font-bold text-slate-400 uppercase leading-tight mb-1">Biaya Riil</div>
                 <div id="totalKeluar" class="text-sm md:text-lg font-bold text-slate-800 truncate">Rp 0</div>
             </div>
             <div class="bg-white p-4 rounded-xl card-shadow border-l-4 border-blue-500 col-span-2 md:col-span-1">
@@ -69,29 +70,49 @@
             </div>
         </div>
 
-        <!-- Filter & Search -->
-        <div class="bg-white p-3 rounded-xl card-shadow mb-5 flex flex-col md:flex-row gap-3 items-center">
-            <div class="relative w-full md:flex-1">
-                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                <input type="text" id="searchInput" oninput="handleSearch()" placeholder="Cari data..." 
-                    class="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+        <!-- Filters -->
+        <div class="bg-white p-4 rounded-xl card-shadow mb-5 space-y-4">
+            <div class="flex flex-col md:flex-row gap-3 items-center justify-between">
+                <div class="relative w-full md:max-w-xs">
+                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                    <input type="text" id="searchInput" oninput="handleSearch()" placeholder="Cari keterangan atau kategori..." 
+                        class="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                
+                <div class="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 no-scrollbar">
+                    <button onclick="setDateFilter('all')" id="btn-date-all" class="px-3 py-1.5 text-[10px] font-bold border border-slate-200 rounded-lg transition-all filter-btn-active whitespace-nowrap uppercase">Semua</button>
+                    <button onclick="setDateFilter('today')" id="btn-date-today" class="px-3 py-1.5 text-[10px] font-bold border border-slate-200 rounded-lg transition-all hover:bg-slate-50 whitespace-nowrap uppercase">Hari Ini</button>
+                    <button onclick="setDateFilter('month')" id="btn-date-month" class="px-3 py-1.5 text-[10px] font-bold border border-slate-200 rounded-lg transition-all hover:bg-slate-50 whitespace-nowrap uppercase">Bulan Ini</button>
+                </div>
+
+                <div id="rowCounter" class="hidden md:block text-[10px] font-bold text-slate-400 uppercase bg-slate-100 px-3 py-1 rounded-full tracking-wider">Memuat...</div>
             </div>
-            <div id="rowCounter" class="text-[10px] font-bold text-slate-400 uppercase bg-slate-100 px-3 py-1 rounded-full">Memuat...</div>
+
+            <div class="flex flex-col md:flex-row gap-3 items-center border-t border-slate-50 pt-3">
+                <div class="flex items-center gap-2 w-full md:w-auto">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase whitespace-nowrap">Mulai</label>
+                    <input type="date" id="dateStart" onchange="handleDateChange()" class="w-full md:w-auto text-xs border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div class="flex items-center gap-2 w-full md:w-auto">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase whitespace-nowrap">Sampai</label>
+                    <input type="date" id="dateEnd" onchange="handleDateChange()" class="w-full md:w-auto text-xs border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <button onclick="resetDateRange()" class="text-[10px] font-bold text-blue-600 hover:text-blue-800 uppercase px-2 py-1 tracking-tight">Reset Kalender</button>
+            </div>
         </div>
 
-        <!-- Table Container -->
+        <!-- Table Display -->
         <div class="bg-white rounded-xl card-shadow overflow-hidden border border-slate-100">
             <div class="table-container">
                 <table class="w-full text-left border-collapse" id="mainTable">
-                    <thead class="bg-slate-50 sticky top-0 z-10 border-b border-slate-200 text-[11px] uppercase text-slate-500 tracking-wider" id="tableHead"></thead>
+                    <thead class="bg-slate-50 sticky top-0 z-10 border-b border-slate-200 text-[10px] uppercase text-slate-400 tracking-widest font-bold" id="tableHead"></thead>
                     <tbody id="tableBody" class="divide-y divide-slate-100 text-[13px]"></tbody>
                 </table>
             </div>
 
-            <!-- Pagination Controls -->
             <div class="bg-slate-50 px-4 py-3 border-t border-slate-200 flex items-center justify-between">
-                <div class="text-[11px] text-slate-500 font-medium">
-                    Halaman <span id="currentPageLabel">1</span> dari <span id="totalPagesLabel">1</span>
+                <div class="text-[11px] text-slate-500 font-bold">
+                    Hal <span id="currentPageLabel">1</span> / <span id="totalPagesLabel">1</span>
                 </div>
                 <div class="flex gap-2">
                     <button id="prevBtn" onclick="prevPage()" class="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 transition-all">
@@ -103,24 +124,23 @@
                 </div>
             </div>
 
-            <!-- Loading Overlay -->
             <div id="loadingOverlay" class="p-16 flex flex-col items-center justify-center">
                 <div class="loader ease-linear rounded-full border-4 border-t-4 border-slate-200 h-8 w-8 mb-3"></div>
-                <p class="text-slate-500 text-xs">Menghubungkan ke Google Sheets...</p>
+                <p class="text-slate-500 text-xs font-medium">Sinkronisasi Google Sheets...</p>
             </div>
         </div>
     </div>
 
-    <!-- Modal Detail Transaksi -->
+    <!-- Modal -->
     <div id="detailModal" class="fixed inset-0 z-50 hidden flex items-end md:items-center justify-center p-0 md:p-4 bg-black bg-opacity-60 backdrop-blur-sm">
         <div id="modalContent" class="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden transition-all transform translate-y-full md:translate-y-0 md:scale-95 opacity-0">
             <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <h3 class="font-bold text-slate-800 text-sm md:text-base">Detail Informasi</h3>
+                <h3 class="font-bold text-slate-800 text-sm">Informasi Detail</h3>
                 <button onclick="closeModal()" class="w-8 h-8 flex items-center justify-center bg-slate-200 rounded-full text-slate-600 hover:text-slate-900 transition-colors">&times;</button>
             </div>
-            <div id="modalBody" class="p-5 space-y-4 overflow-y-auto max-h-[70vh] md:max-h-[80vh]"></div>
+            <div id="modalBody" class="p-5 space-y-4 overflow-y-auto max-h-[70vh]"></div>
             <div class="px-5 py-4 border-t border-slate-100 bg-white text-right">
-                <button onclick="closeModal()" class="w-full md:w-auto bg-slate-100 hover:bg-slate-200 text-slate-700 px-6 py-2.5 rounded-xl font-bold text-sm transition-colors">Tutup</button>
+                <button onclick="closeModal()" class="w-full md:w-auto bg-slate-100 hover:bg-slate-200 text-slate-700 px-6 py-2.5 rounded-xl font-bold text-sm transition-colors uppercase tracking-wide">Tutup</button>
             </div>
         </div>
     </div>
@@ -134,11 +154,10 @@
 
         let currentTab = 'transaksi';
         let db = { transaksi: [], piutang: [], stok: [] };
-        
-        // Paging Logic Variables
         let currentPage = 1;
         const rowsPerPage = 50;
         let filteredData = [];
+        let dateFilterMode = 'all';
 
         function formatIDR(val) {
             const num = parseFloat(val) || 0;
@@ -147,7 +166,7 @@
 
         function switchTab(tab) {
             currentTab = tab;
-            currentPage = 1; // Reset to page 1 on tab switch
+            currentPage = 1;
             ['transaksi', 'piutang', 'stok'].forEach(t => {
                 const el = document.getElementById(`tab-${t}`);
                 if(t === tab) el.classList.add('tab-active');
@@ -171,7 +190,6 @@
                 db.transaksi = results[0];
                 db.piutang = results[1];
                 db.stok = results[2];
-                calculateStats();
                 renderContent();
             } catch (e) {
                 console.error(e);
@@ -193,67 +211,145 @@
             });
         }
 
+        /**
+         * CALCULATE STATS LOGIC
+         * - Pemasukan/Pengeluaran: Excludes "Transfer Saldo" category
+         * - Sisa Piutang: Always Global (Not affected by filters)
+         */
         function calculateStats() {
             let masuk = 0, keluar = 0, piutangTotal = 0;
-            db.transaksi.forEach(r => {
-                masuk += parseFloat(r["Masuk"]) || 0;
-                keluar += parseFloat(r["Keluar"]) || 0;
-            });
+            const skipCategory = "Transfer Saldo".toLowerCase();
+
+            const processRow = (r) => {
+                const category = (r["Kategori"] || "").toLowerCase();
+                // Hanya hitung jika bukan Transfer Saldo (pemasukan/pengeluaran riil)
+                if (category !== skipCategory) {
+                    masuk += parseFloat(r["Masuk"]) || 0;
+                    keluar += parseFloat(r["Keluar"]) || 0;
+                }
+            };
+
+            if (currentTab === 'transaksi') {
+                filteredData.forEach(processRow);
+            } else {
+                const query = document.getElementById('searchInput').value.toLowerCase();
+                const start = document.getElementById('dateStart').value;
+                const end = document.getElementById('dateEnd').value;
+                
+                db.transaksi.forEach(r => {
+                    let pass = Object.values(r).some(v => String(v).toLowerCase().includes(query));
+                    if (pass && dateFilterMode !== 'all') {
+                        const itemDate = new Date(r["Waktu"]).getTime();
+                        if (!isNaN(itemDate)) {
+                            const now = new Date();
+                            if (dateFilterMode === 'today') pass = itemDate >= new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+                            else if (dateFilterMode === 'month') pass = itemDate >= new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+                            else if (dateFilterMode === 'custom') {
+                                if(start) pass = pass && itemDate >= new Date(start).getTime();
+                                if(end) pass = pass && itemDate <= new Date(end).setHours(23, 59, 59, 999);
+                            }
+                        }
+                    }
+                    if (pass) processRow(r);
+                });
+            }
+
+            // Global Piutang Calculation
             db.piutang.forEach(r => {
-                piutangTotal += parseFloat(r["Sisa Piutang"]) || 0;
+                const sisa = parseFloat(r["Sisa Piutang"]) || 0;
+                const status = (r["Status"] || "").toLowerCase();
+                if (sisa > 0 && status !== 'lunas') piutangTotal += sisa;
             });
+
             document.getElementById('totalMasuk').innerText = formatIDR(masuk);
             document.getElementById('totalKeluar').innerText = formatIDR(keluar);
             document.getElementById('totalPiutang').innerText = formatIDR(piutangTotal);
         }
 
-        function renderContent() {
-            const head = document.getElementById('tableHead');
-            if (currentTab === 'transaksi') {
-                head.innerHTML = `<tr><th class="px-4 py-3">Waktu & Deskripsi</th><th class="px-4 py-3 text-right">Nominal</th></tr>`;
-            } else if (currentTab === 'piutang') {
-                head.innerHTML = `<tr><th class="px-4 py-3">Pelanggan</th><th class="px-4 py-3 text-right">Sisa Piutang</th></tr>`;
-            } else if (currentTab === 'stok') {
-                head.innerHTML = `<tr><th class="px-4 py-3">Barang</th><th class="px-4 py-3 text-center">Stok</th></tr>`;
+        function handleSearch() { currentPage = 1; applyFilter(); }
+
+        function setDateFilter(mode) {
+            dateFilterMode = mode;
+            currentPage = 1;
+            ['all', 'today', 'month'].forEach(m => {
+                const el = document.getElementById(`btn-date-${m}`);
+                if(m === mode) el.classList.add('filter-btn-active');
+                else el.classList.remove('filter-btn-active');
+            });
+            if(mode !== 'custom') {
+                document.getElementById('dateStart').value = '';
+                document.getElementById('dateEnd').value = '';
             }
             applyFilter();
         }
 
-        function handleSearch() {
-            currentPage = 1; // Reset to page 1 on search
-            applyFilter();
+        function handleDateChange() {
+            const start = document.getElementById('dateStart').value;
+            const end = document.getElementById('dateEnd').value;
+            if(start || end) {
+                dateFilterMode = 'custom';
+                ['all', 'today', 'month'].forEach(m => {
+                    document.getElementById(`btn-date-${m}`).classList.remove('filter-btn-active');
+                });
+                currentPage = 1;
+                applyFilter();
+            }
+        }
+
+        function resetDateRange() {
+            document.getElementById('dateStart').value = '';
+            document.getElementById('dateEnd').value = '';
+            setDateFilter('all');
         }
 
         function applyFilter() {
             const query = document.getElementById('searchInput').value.toLowerCase();
             let data = db[currentTab];
+            let result = data.filter(row => Object.values(row).some(v => String(v).toLowerCase().includes(query)));
 
-            // Filter logic
             if (currentTab === 'piutang') {
-                data = data.filter(row => {
+                result = result.filter(row => {
                     const sisa = parseFloat(row["Sisa Piutang"]) || 0;
-                    const status = (row["Status"] || "").toLowerCase();
-                    return sisa > 0 && status !== 'lunas';
+                    return sisa > 0 && (row["Status"] || "").toLowerCase() !== 'lunas';
                 });
             }
 
-            filteredData = data.filter(row => Object.values(row).some(v => String(v).toLowerCase().includes(query)));
-            
+            if (dateFilterMode !== 'all' && currentTab !== 'stok') {
+                const now = new Date();
+                const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+                const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+
+                result = result.filter(row => {
+                    const dateStr = row["Waktu"] || row["Update Terakhir"];
+                    if(!dateStr) return true;
+                    const itemDate = new Date(dateStr).getTime();
+                    if(isNaN(itemDate)) return true;
+                    if (dateFilterMode === 'today') return itemDate >= startOfToday;
+                    if (dateFilterMode === 'month') return itemDate >= startOfMonth;
+                    if (dateFilterMode === 'custom') {
+                        const s = document.getElementById('dateStart').value;
+                        const e = document.getElementById('dateEnd').value;
+                        let pass = true;
+                        if(s) pass = pass && itemDate >= new Date(s).getTime();
+                        if(e) pass = pass && itemDate <= new Date(e).setHours(23, 59, 59, 999);
+                        return pass;
+                    }
+                    return true;
+                });
+            }
+
+            filteredData = result;
             document.getElementById('rowCounter').innerText = `${filteredData.length} Data`;
-            
+            calculateStats(); 
             updatePagination();
             renderTableBody();
         }
 
         function updatePagination() {
             const totalPages = Math.ceil(filteredData.length / rowsPerPage) || 1;
-            
-            // Adjust current page if it exceeds total pages after filtering
             if (currentPage > totalPages) currentPage = totalPages;
-
             document.getElementById('currentPageLabel').innerText = currentPage;
             document.getElementById('totalPagesLabel').innerText = totalPages;
-            
             document.getElementById('prevBtn').disabled = currentPage === 1;
             document.getElementById('nextBtn').disabled = currentPage === totalPages;
         }
@@ -261,10 +357,13 @@
         function renderTableBody() {
             const body = document.getElementById('tableBody');
             body.innerHTML = '';
-            
             const startIndex = (currentPage - 1) * rowsPerPage;
-            const endIndex = startIndex + rowsPerPage;
-            const paginatedData = filteredData.slice(startIndex, endIndex);
+            const paginatedData = filteredData.slice(startIndex, startIndex + rowsPerPage);
+
+            if(paginatedData.length === 0) {
+                body.innerHTML = `<tr><td colspan="5" class="p-10 text-center text-slate-300 italic">Data tidak ditemukan</td></tr>`;
+                return;
+            }
 
             paginatedData.forEach((row) => {
                 const tr = document.createElement('tr');
@@ -277,149 +376,97 @@
                     const k = parseFloat(row["Keluar"]) || 0;
                     const nominal = m > 0 ? m : k;
                     const color = m > 0 ? 'text-green-600' : 'text-red-600';
+                    const isTransfer = (row["Kategori"] || "").toLowerCase() === "transfer saldo";
+                    
                     html = `
                         <td class="px-4 py-3">
-                            <div class="text-[10px] text-slate-400 font-medium">${row["Waktu"]}</div>
-                            <div class="font-bold text-slate-800 line-clamp-1">${row["Keterangan"]}</div>
-                            <div class="text-[10px]"><span class="px-1.5 py-0.5 bg-slate-100 rounded font-semibold text-slate-500">${row["Kategori"]}</span></div>
+                            <div class="text-[9px] text-slate-400 font-bold uppercase mb-0.5">${row["Waktu"]}</div>
+                            <div class="font-bold text-slate-800 line-clamp-1">${isTransfer ? '<i class="fas fa-sync text-blue-500 mr-1.5"></i>' : ''}${row["Keterangan"]}</div>
+                            <div class="mt-1"><span class="px-1.5 py-0.5 ${isTransfer ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'} rounded text-[9px] font-black uppercase">${row["Kategori"]}</span></div>
                         </td>
-                        <td class="px-4 py-3 text-right font-bold ${color}">${formatIDR(nominal)}</td>
+                        <td class="px-4 py-3 text-right font-bold ${isTransfer ? 'text-blue-500' : color}">${formatIDR(nominal)}</td>
                     `;
                 } else if (currentTab === 'piutang') {
                     html = `
-                        <td class="px-4 py-3">
-                            <div class="font-bold text-slate-800">${row["Nama Pelanggan"]}</div>
-                            <div class="text-[10px] text-slate-400">${row["Waktu"]}</div>
-                        </td>
-                        <td class="px-4 py-3 text-right text-red-600 font-bold">
-                            ${formatIDR(row["Sisa Piutang"])}
-                            <div class="text-[10px] font-medium text-slate-400">DARI ${formatIDR(row["Total Tagihan"])}</div>
-                        </td>
+                        <td class="px-4 py-3"><div class="font-bold text-slate-800">${row["Nama Pelanggan"]}</div><div class="text-[10px] text-slate-400">${row["Waktu"]}</div></td>
+                        <td class="px-4 py-3 text-right text-red-600 font-bold">${formatIDR(row["Sisa Piutang"])}<div class="text-[9px] font-bold text-slate-400 uppercase mt-0.5">Tagihan: ${formatIDR(row["Total Tagihan"])}</div></td>
                     `;
                 } else if (currentTab === 'stok') {
-                    const sisa = parseFloat(row["Sisa Stok"]) || 0;
                     html = `
                         <td class="px-4 py-3 font-bold text-slate-800">${row["Nama Barang"]}</td>
-                        <td class="px-4 py-3 text-center">
-                            <span class="px-3 py-1 bg-blue-50 text-blue-700 rounded-lg font-black text-sm">${sisa}</span>
-                        </td>
+                        <td class="px-4 py-3 text-center"><span class="px-3 py-1 bg-blue-50 text-blue-700 rounded-lg font-black text-sm">${row["Sisa Stok"] || 0}</span></td>
                     `;
                 }
                 tr.innerHTML = html;
                 body.appendChild(tr);
             });
-
-            // Scroll to top of table when changing pages
             document.querySelector('.table-container').scrollTop = 0;
         }
 
-        function prevPage() {
-            if (currentPage > 1) {
-                currentPage--;
-                updatePagination();
-                renderTableBody();
-            }
+        function renderContent() {
+            const head = document.getElementById('tableHead');
+            if (currentTab === 'transaksi') head.innerHTML = `<tr><th class="px-4 py-3">Transaksi & Kategori</th><th class="px-4 py-3 text-right">Nominal</th></tr>`;
+            else if (currentTab === 'piutang') head.innerHTML = `<tr><th class="px-4 py-3">Data Pelanggan</th><th class="px-4 py-3 text-right">Sisa Piutang</th></tr>`;
+            else if (currentTab === 'stok') head.innerHTML = `<tr><th class="px-4 py-3">Nama Produk</th><th class="px-4 py-3 text-center">Tersedia</th></tr>`;
+            applyFilter();
         }
 
-        function nextPage() {
-            const totalPages = Math.ceil(filteredData.length / rowsPerPage);
-            if (currentPage < totalPages) {
-                currentPage++;
-                updatePagination();
-                renderTableBody();
-            }
-        }
+        function prevPage() { if (currentPage > 1) { currentPage--; updatePagination(); renderTableBody(); } }
+        function nextPage() { if (currentPage < Math.ceil(filteredData.length / rowsPerPage)) { currentPage++; updatePagination(); renderTableBody(); } }
 
         function showDetail(data) {
             const modal = document.getElementById('detailModal');
             const content = document.getElementById('modalContent');
             const body = document.getElementById('modalBody');
-            
             let html = '';
             
             if (currentTab === 'transaksi') {
-                let itemsHtml = '<p class="text-slate-400 italic text-xs">Tidak ada rincian item</p>';
+                let itemsHtml = '<p class="text-slate-400 italic text-[11px]">Tidak ada rincian item belanja</p>';
                 if (data["Detail JSON"]) {
                     try {
                         const items = JSON.parse(data["Detail JSON"]);
                         if (Array.isArray(items)) {
-                            itemsHtml = `<div class="bg-slate-50 rounded-xl overflow-hidden border border-slate-100">
+                            itemsHtml = `<div class="bg-slate-50 rounded-xl border border-slate-100 overflow-hidden">
                                 <table class="w-full text-[11px]">
-                                    <thead class="bg-slate-200 text-slate-600">
-                                        <tr><th class="p-2 text-left">Item</th><th class="p-2 text-center">Qty</th><th class="p-2 text-right">Harga</th></tr>
-                                    </thead>
-                                    <tbody class="divide-y divide-slate-100">
-                                        ${items.map(i => `
-                                            <tr>
-                                                <td class="p-2 font-medium">${i.nama || '-'}</td>
-                                                <td class="p-2 text-center font-bold">${i.qty || 1}</td>
-                                                <td class="p-2 text-right font-semibold">${formatIDR(i.harga)}</td>
-                                            </tr>
-                                        `).join('')}
-                                    </tbody>
+                                    <thead class="bg-slate-100 text-slate-500 font-bold uppercase text-[9px]"><tr><th class="p-2 text-left">Item</th><th class="p-2 text-center">Qty</th><th class="p-2 text-right">Harga</th></tr></thead>
+                                    <tbody class="divide-y divide-slate-100">${items.map(i => `<tr><td class="p-2 font-medium">${i.nama || '-'}</td><td class="p-2 text-center font-bold">${i.qty || 1}</td><td class="p-2 text-right font-bold text-slate-700">${formatIDR(i.harga)}</td></tr>`).join('')}</tbody>
                                 </table>
                             </div>`;
                         }
                     } catch(e) {}
                 }
-
                 html = `
                     <div class="space-y-4">
-                        <div class="flex flex-col items-center justify-center pb-2 border-b border-slate-100 border-dashed">
-                            <div class="text-[10px] text-slate-400 font-bold uppercase mb-1">Total Nominal</div>
-                            <div class="text-2xl font-black ${data["Tipe"]==='MASUK'?'text-green-600':'text-red-600'}">${formatIDR(parseFloat(data["Masuk"]) || parseFloat(data["Keluar"]))}</div>
+                        <div class="flex flex-col items-center justify-center pb-4 border-b border-slate-100 border-dashed">
+                            <div class="text-[10px] text-slate-400 font-bold uppercase mb-1">Total Transaksi</div>
+                            <div class="text-2xl font-black ${(data["Kategori"]||"").toLowerCase()==='transfer saldo' ? 'text-blue-600' : (data["Tipe"]==='MASUK'?'text-green-600':'text-red-600')}">${formatIDR(parseFloat(data["Masuk"]) || parseFloat(data["Keluar"]))}</div>
                         </div>
-                        <div class="grid grid-cols-2 gap-y-4 gap-x-2">
-                            <div><label class="text-[10px] font-bold text-slate-400 uppercase block">Tanggal</label><p class="text-xs font-semibold">${data["Waktu"]}</p></div>
-                            <div><label class="text-[10px] font-bold text-slate-400 uppercase block">ID Ref</label><p class="text-[10px] font-mono truncate">${data["ID"]}</p></div>
-                            <div><label class="text-[10px] font-bold text-slate-400 uppercase block">Kategori</label><p class="text-xs font-semibold">${data["Kategori"]}</p></div>
-                            <div><label class="text-[10px] font-bold text-slate-400 uppercase block">Metode</label><p class="text-xs font-semibold">${data["Metode"] || '-'}</p></div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div><label class="text-[9px] font-bold text-slate-400 uppercase block">Waktu</label><p class="text-xs font-bold text-slate-700">${data["Waktu"]}</p></div>
+                            <div><label class="text-[9px] font-bold text-slate-400 uppercase block">Kategori</label><p class="text-xs font-bold text-slate-700 uppercase">${data["Kategori"]}</p></div>
                         </div>
-                        <div><label class="text-[10px] font-bold text-slate-400 uppercase block">Keterangan</label><p class="text-xs text-slate-600 leading-relaxed">${data["Keterangan"]}</p></div>
-                        <div class="pt-2">
-                            <label class="text-[10px] font-bold text-slate-400 uppercase mb-2 block">Daftar Belanja</label>
-                            ${itemsHtml}
-                        </div>
+                        <div><label class="text-[9px] font-bold text-slate-400 uppercase block">Keterangan</label><p class="text-xs text-slate-600 font-medium leading-relaxed">${data["Keterangan"]}</p></div>
+                        <div class="pt-2"><label class="text-[9px] font-bold text-slate-400 uppercase mb-2 block">Daftar Produk</label>${itemsHtml}</div>
                     </div>
                 `;
             } else if (currentTab === 'piutang') {
                 html = `
-                    <div class="space-y-4">
-                        <div class="text-center">
-                            <div class="text-[10px] text-slate-400 font-bold uppercase mb-1">Sisa Piutang</div>
-                            <div class="text-2xl font-black text-red-600">${formatIDR(data["Sisa Piutang"])}</div>
-                            <div class="inline-block mt-2 px-3 py-1 rounded-full text-[10px] font-bold uppercase ${(data["Status"]||"").toLowerCase()==='lunas'?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}">${data["Status"]}</div>
-                        </div>
-                        <div class="space-y-2 pt-4 border-t border-slate-100">
-                            <div class="flex justify-between items-center text-xs"><span class="text-slate-500 font-medium">Pelanggan</span><span class="font-bold">${data["Nama Pelanggan"]}</span></div>
-                            <div class="flex justify-between items-center text-xs"><span class="text-slate-500 font-medium">Tanggal Transaksi</span><span>${data["Waktu"]}</span></div>
-                            <div class="flex justify-between items-center text-xs"><span class="text-slate-500 font-medium">Total Tagihan</span><span class="font-semibold">${formatIDR(data["Total Tagihan"])}</span></div>
-                            <div class="flex justify-between items-center text-xs"><span class="text-slate-500 font-medium text-green-600">Terbayar (DP)</span><span class="font-semibold text-green-600">${formatIDR(data["DP"])}</span></div>
+                    <div class="space-y-5 text-center">
+                        <div><div class="text-[10px] text-slate-400 font-bold uppercase mb-1">Piutang Tersisa</div><div class="text-2xl font-black text-red-600">${formatIDR(data["Sisa Piutang"])}</div></div>
+                        <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 text-left space-y-2">
+                            <div class="flex justify-between items-center text-xs"><span class="text-slate-400 font-bold uppercase text-[9px]">Pelanggan</span><span class="font-bold text-slate-700">${data["Nama Pelanggan"]}</span></div>
+                            <div class="flex justify-between items-center text-xs"><span class="text-slate-400 font-bold uppercase text-[9px]">Total Tagihan</span><span class="font-bold text-slate-700">${formatIDR(data["Total Tagihan"])}</span></div>
+                            <div class="flex justify-between items-center text-xs"><span class="text-slate-400 font-bold uppercase text-[9px]">Terbayar (DP)</span><span class="font-bold text-green-600">${formatIDR(data["DP"])}</span></div>
                         </div>
                     </div>
                 `;
             } else if (currentTab === 'stok') {
-                html = `
-                    <div class="space-y-6 text-center">
-                        <div>
-                             <i class="fas fa-box-open text-blue-100 text-6xl mb-2"></i>
-                             <h4 class="text-lg font-bold text-slate-800">${data["Nama Barang"]}</h4>
-                        </div>
-                        <div class="grid grid-cols-3 gap-2 bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                            <div><div class="text-[9px] text-slate-400 font-bold uppercase">Masuk</div><div class="text-base text-green-600 font-bold">${data["Masuk"]}</div></div>
-                            <div><div class="text-[9px] text-slate-400 font-bold uppercase">Keluar</div><div class="text-base text-red-600 font-bold">${data["Keluar"]}</div></div>
-                            <div><div class="text-[9px] text-slate-400 font-bold uppercase">Tersedia</div><div class="text-xl text-blue-600 font-black">${data["Sisa Stok"]}</div></div>
-                        </div>
-                        <div class="text-[10px] text-slate-400 bg-white p-2 border border-slate-100 rounded-lg inline-block">Update: ${data["Update Terakhir"]}</div>
-                    </div>
-                `;
+                html = `<div class="space-y-6 text-center"><div><i class="fas fa-boxes text-blue-100 text-6xl mb-3"></i><h4 class="text-lg font-black text-slate-800">${data["Nama Barang"]}</h4></div><div class="grid grid-cols-3 gap-2 bg-slate-50 p-5 rounded-2xl border border-slate-100"><div><div class="text-[9px] text-slate-400 font-bold uppercase mb-1">Masuk</div><div class="text-sm text-green-600 font-black">${data["Masuk"]}</div></div><div><div class="text-[9px] text-slate-400 font-bold uppercase mb-1">Keluar</div><div class="text-sm text-red-600 font-black">${data["Keluar"]}</div></div><div><div class="text-[9px] text-slate-400 font-bold uppercase mb-1">Sisa</div><div class="text-lg text-blue-600 font-black">${data["Sisa Stok"]}</div></div></div><div class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Diperbarui: ${data["Update Terakhir"]}</div></div>`;
             }
 
             body.innerHTML = html;
             modal.classList.remove('hidden');
-            setTimeout(() => {
-                content.classList.remove('translate-y-full', 'scale-95', 'opacity-0');
-            }, 10);
+            setTimeout(() => { content.classList.remove('translate-y-full', 'scale-95', 'opacity-0'); }, 10);
         }
 
         function closeModal() {
@@ -428,16 +475,10 @@
             const isMobile = window.innerWidth < 768;
             if(isMobile) content.classList.add('translate-y-full');
             else content.classList.add('scale-95', 'opacity-0');
-            setTimeout(() => {
-                modal.classList.add('hidden');
-            }, 250);
+            setTimeout(() => { modal.classList.add('hidden'); }, 250);
         }
 
-        window.onclick = function(event) {
-            const modal = document.getElementById('detailModal');
-            if (event.target == modal) closeModal();
-        }
-
+        window.onclick = function(event) { if (event.target == document.getElementById('detailModal')) closeModal(); }
         window.onload = fetchAllData;
     </script>
 </body>
