@@ -11,9 +11,9 @@
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; -webkit-tap-highlight-color: transparent; }
         .card-shadow { box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
-        .table-container { max-height: calc(100vh - 380px); overflow-y: auto; }
+        .table-container { max-height: calc(100vh - 440px); overflow-y: auto; }
         @media (max-width: 640px) {
-            .table-container { max-height: calc(100vh - 420px); }
+            .table-container { max-height: calc(100vh - 480px); }
             th, td { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
         }
         .loader { border-top-color: #3b82f6; animation: spinner 1.5s linear infinite; }
@@ -73,7 +73,7 @@
         <div class="bg-white p-3 rounded-xl card-shadow mb-5 flex flex-col md:flex-row gap-3 items-center">
             <div class="relative w-full md:flex-1">
                 <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                <input type="text" id="searchInput" oninput="applyFilter()" placeholder="Cari data..." 
+                <input type="text" id="searchInput" oninput="handleSearch()" placeholder="Cari data..." 
                     class="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
             </div>
             <div id="rowCounter" class="text-[10px] font-bold text-slate-400 uppercase bg-slate-100 px-3 py-1 rounded-full">Memuat...</div>
@@ -86,6 +86,21 @@
                     <thead class="bg-slate-50 sticky top-0 z-10 border-b border-slate-200 text-[11px] uppercase text-slate-500 tracking-wider" id="tableHead"></thead>
                     <tbody id="tableBody" class="divide-y divide-slate-100 text-[13px]"></tbody>
                 </table>
+            </div>
+
+            <!-- Pagination Controls -->
+            <div class="bg-slate-50 px-4 py-3 border-t border-slate-200 flex items-center justify-between">
+                <div class="text-[11px] text-slate-500 font-medium">
+                    Halaman <span id="currentPageLabel">1</span> dari <span id="totalPagesLabel">1</span>
+                </div>
+                <div class="flex gap-2">
+                    <button id="prevBtn" onclick="prevPage()" class="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 transition-all">
+                        <i class="fas fa-chevron-left mr-1"></i> Sblm
+                    </button>
+                    <button id="nextBtn" onclick="nextPage()" class="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 transition-all">
+                        Brkt <i class="fas fa-chevron-right ml-1"></i>
+                    </button>
+                </div>
             </div>
 
             <!-- Loading Overlay -->
@@ -119,6 +134,11 @@
 
         let currentTab = 'transaksi';
         let db = { transaksi: [], piutang: [], stok: [] };
+        
+        // Paging Logic Variables
+        let currentPage = 1;
+        const rowsPerPage = 50;
+        let filteredData = [];
 
         function formatIDR(val) {
             const num = parseFloat(val) || 0;
@@ -127,6 +147,7 @@
 
         function switchTab(tab) {
             currentTab = tab;
+            currentPage = 1; // Reset to page 1 on tab switch
             ['transaksi', 'piutang', 'stok'].forEach(t => {
                 const el = document.getElementById(`tab-${t}`);
                 if(t === tab) el.classList.add('tab-active');
@@ -198,12 +219,16 @@
             applyFilter();
         }
 
+        function handleSearch() {
+            currentPage = 1; // Reset to page 1 on search
+            applyFilter();
+        }
+
         function applyFilter() {
             const query = document.getElementById('searchInput').value.toLowerCase();
-            const body = document.getElementById('tableBody');
             let data = db[currentTab];
 
-            // PENYARINGAN KHUSUS PIUTANG: Sembunyikan yang Sisa Piutang = 0 atau Status = Lunas
+            // Filter logic
             if (currentTab === 'piutang') {
                 data = data.filter(row => {
                     const sisa = parseFloat(row["Sisa Piutang"]) || 0;
@@ -212,11 +237,36 @@
                 });
             }
 
-            const filtered = data.filter(row => Object.values(row).some(v => String(v).toLowerCase().includes(query)));
-            body.innerHTML = '';
-            document.getElementById('rowCounter').innerText = `${filtered.length} Data`;
+            filteredData = data.filter(row => Object.values(row).some(v => String(v).toLowerCase().includes(query)));
+            
+            document.getElementById('rowCounter').innerText = `${filteredData.length} Data`;
+            
+            updatePagination();
+            renderTableBody();
+        }
 
-            filtered.forEach((row) => {
+        function updatePagination() {
+            const totalPages = Math.ceil(filteredData.length / rowsPerPage) || 1;
+            
+            // Adjust current page if it exceeds total pages after filtering
+            if (currentPage > totalPages) currentPage = totalPages;
+
+            document.getElementById('currentPageLabel').innerText = currentPage;
+            document.getElementById('totalPagesLabel').innerText = totalPages;
+            
+            document.getElementById('prevBtn').disabled = currentPage === 1;
+            document.getElementById('nextBtn').disabled = currentPage === totalPages;
+        }
+
+        function renderTableBody() {
+            const body = document.getElementById('tableBody');
+            body.innerHTML = '';
+            
+            const startIndex = (currentPage - 1) * rowsPerPage;
+            const endIndex = startIndex + rowsPerPage;
+            const paginatedData = filteredData.slice(startIndex, endIndex);
+
+            paginatedData.forEach((row) => {
                 const tr = document.createElement('tr');
                 tr.className = "hover:bg-slate-50 transition-colors border-b border-slate-50 cursor-pointer active:bg-slate-100";
                 tr.onclick = () => showDetail(row);
@@ -258,6 +308,26 @@
                 tr.innerHTML = html;
                 body.appendChild(tr);
             });
+
+            // Scroll to top of table when changing pages
+            document.querySelector('.table-container').scrollTop = 0;
+        }
+
+        function prevPage() {
+            if (currentPage > 1) {
+                currentPage--;
+                updatePagination();
+                renderTableBody();
+            }
+        }
+
+        function nextPage() {
+            const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+            if (currentPage < totalPages) {
+                currentPage++;
+                updatePagination();
+                renderTableBody();
+            }
         }
 
         function showDetail(data) {
