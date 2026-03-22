@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ViP Enterprise Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
+        .card-shadow { box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+        .table-container { max-height: calc(100vh - 350px); overflow-y: auto; }
+        .loader { border-top-color: #3b82f6; animation: spinner 1.5s linear infinite; }
+        @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .tab-active { border-bottom: 3px solid #2563eb; color: #2563eb; font-weight: 700; }
+        /* Modal Animation */
+        .modal-enter { opacity: 0; transform: scale(0.95); }
+        .modal-enter-active { opacity: 1; transform: scale(1); transition: all 0.2s ease-out; }
+    </style>
+</head>
+<body class="p-4 md:p-6">
+
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <header class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <h1 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fas fa-chart-line text-blue-600"></i>
+                    ViP Enterprise System
+                </h1>
+                <p class="text-slate-500 text-sm">Dashboard Monitoring Transaksi, Piutang, dan Stok</p>
+            </div>
+            <button onclick="fetchAllData()" id="refreshBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2 shadow-md active:scale-95">
+                <i class="fas fa-sync-alt"></i> Sinkronisasi Data
+            </button>
+        </header>
+
+        <!-- Tab Navigation -->
+        <div class="flex border-b border-slate-200 mb-6 bg-white rounded-t-xl px-4 overflow-x-auto">
+            <button onclick="switchTab('transaksi')" id="tab-transaksi" class="px-6 py-3 text-sm font-medium transition-all tab-active whitespace-nowrap">
+                <i class="fas fa-exchange-alt mr-2"></i>Transaksi
+            </button>
+            <button onclick="switchTab('piutang')" id="tab-piutang" class="px-6 py-3 text-sm font-medium transition-all text-slate-500 hover:text-blue-600 whitespace-nowrap">
+                <i class="fas fa-hand-holding-usd mr-2"></i>Piutang
+            </button>
+            <button onclick="switchTab('stok')" id="tab-stok" class="px-6 py-3 text-sm font-medium transition-all text-slate-500 hover:text-blue-600 whitespace-nowrap">
+                <i class="fas fa-boxes mr-2"></i>Stok Barang
+            </button>
+        </div>
+
+        <!-- Dashboard Stats -->
+        <div id="statsGrid" class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-green-500">
+                <div class="text-xs font-bold text-slate-400 uppercase">Pemasukan (Bulan Ini)</div>
+                <div id="totalMasuk" class="text-xl font-bold text-slate-800">Rp 0</div>
+            </div>
+            <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-red-500">
+                <div class="text-xs font-bold text-slate-400 uppercase">Pengeluaran (Bulan Ini)</div>
+                <div id="totalKeluar" class="text-xl font-bold text-slate-800">Rp 0</div>
+            </div>
+            <div class="bg-white p-5 rounded-xl card-shadow border-l-4 border-blue-500">
+                <div class="text-xs font-bold text-slate-400 uppercase">Total Sisa Piutang</div>
+                <div id="totalPiutang" class="text-xl font-bold text-slate-800">Rp 0</div>
+            </div>
+        </div>
+
+        <!-- Filter & Search -->
+        <div class="bg-white p-4 rounded-xl card-shadow mb-6 flex flex-col md:flex-row gap-4 items-center">
+            <div class="relative w-full md:flex-1">
+                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                <input type="text" id="searchInput" oninput="applyFilter()" placeholder="Cari data..." 
+                    class="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+            <div id="rowCounter" class="text-xs font-bold text-slate-400 uppercase">Memuat...</div>
+        </div>
+
+        <!-- Table Container -->
+        <div class="bg-white rounded-xl card-shadow overflow-hidden border border-slate-100">
+            <div class="table-container">
+                <table class="w-full text-left border-collapse" id="mainTable">
+                    <thead class="bg-slate-50 sticky top-0 z-10 border-b border-slate-200" id="tableHead"></thead>
+                    <tbody id="tableBody" class="divide-y divide-slate-100 text-sm"></tbody>
+                </table>
+            </div>
+
+            <!-- Loading Overlay -->
+            <div id="loadingOverlay" class="p-20 flex flex-col items-center justify-center">
+                <div class="loader ease-linear rounded-full border-4 border-t-4 border-slate-200 h-10 w-10 mb-3"></div>
+                <p class="text-slate-500 text-sm">Sinkronisasi data Google Sheets...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Detail Transaksi -->
+    <div id="detailModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-black bg-opacity-50 backdrop-blur-sm">
+        <div id="modalContent" class="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden transition-all transform scale-95 opacity-0">
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 class="font-bold text-slate-800">Detail Transaksi</h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 transition-colors text-xl">&times;</button>
+            </div>
+            <div id="modalBody" class="p-6 space-y-4 overflow-y-auto max-h-[80vh]">
+                <!-- Konten dinamis -->
+            </div>
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 text-right">
+                <button onclick="closeModal()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-lg font-semibold text-sm transition-colors">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const URLS = {
+            transaksi: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRvAQXltAVp8lnrXXVVPJr1hYEi8cAJrqz182qT23eaiI8t-MoBrEtE7bAAJqKEyKKTig4hpA9DNuQB/pub?gid=2057149863&single=true&output=csv",
+            piutang: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRvAQXltAVp8lnrXXVVPJr1hYEi8cAJrqz182qT23eaiI8t-MoBrEtE7bAAJqKEyKKTig4hpA9DNuQB/pub?gid=1961183383&single=true&output=csv",
+            stok: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRvAQXltAVp8lnrXXVVPJr1hYEi8cAJrqz182qT23eaiI8t-MoBrEtE7bAAJqKEyKKTig4hpA9DNuQB/pub?gid=1595956432&single=true&output=csv"
+        };
+
+        let currentTab = 'transaksi';
+        let db = { transaksi: [], piutang: [], stok: [] };
+
+        function formatIDR(val) {
+            const num = parseFloat(val) || 0;
+            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            ['transaksi', 'piutang', 'stok'].forEach(t => {
+                const el = document.getElementById(`tab-${t}`);
+                if(t === tab) el.classList.add('tab-active');
+                else el.classList.remove('tab-active');
+            });
+            renderContent();
+        }
+
+        async function fetchAllData() {
+            const btn = document.getElementById('refreshBtn');
+            const loader = document.getElementById('loadingOverlay');
+            btn.disabled = true;
+            loader.classList.remove('hidden');
+
+            try {
+                const results = await Promise.all([
+                    fetchCSV(URLS.transaksi),
+                    fetchCSV(URLS.piutang),
+                    fetchCSV(URLS.stok)
+                ]);
+                db.transaksi = results[0];
+                db.piutang = results[1];
+                db.stok = results[2];
+                calculateStats();
+                renderContent();
+            } catch (e) {
+                console.error(e);
+                alert("Gagal sinkronisasi data.");
+            } finally {
+                btn.disabled = false;
+                loader.classList.add('hidden');
+            }
+        }
+
+        function fetchCSV(url) {
+            return new Promise((resolve, reject) => {
+                Papa.parse(url, {
+                    download: true,
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: (results) => resolve(results.data),
+                    error: (err) => reject(err)
+                });
+            });
+        }
+
+        function calculateStats() {
+            let masuk = 0, keluar = 0, piutang = 0;
+            db.transaksi.forEach(r => {
+                masuk += parseFloat(r["Masuk"]) || 0;
+                keluar += parseFloat(r["Keluar"]) || 0;
+            });
+            db.piutang.forEach(r => {
+                piutang += parseFloat(r["Sisa Piutang"]) || 0;
+            });
+            document.getElementById('totalMasuk').innerText = formatIDR(masuk);
+            document.getElementById('totalKeluar').innerText = formatIDR(keluar);
+            document.getElementById('totalPiutang').innerText = formatIDR(piutang);
+        }
+
+        function renderContent() {
+            const head = document.getElementById('tableHead');
+            if (currentTab === 'transaksi') {
+                head.innerHTML = `<tr>
+                    <th class="px-6 py-3">Waktu & ID</th>
+                    <th class="px-6 py-3">Kategori</th>
+                    <th class="px-6 py-3">Keterangan</th>
+                    <th class="px-6 py-3 text-right">Masuk</th>
+                    <th class="px-6 py-3 text-right">Keluar</th>
+                </tr>`;
+            } else if (currentTab === 'piutang') {
+                head.innerHTML = `<tr>
+                    <th class="px-6 py-3">Waktu</th>
+                    <th class="px-6 py-3">Pelanggan</th>
+                    <th class="px-6 py-3 text-right">Tagihan</th>
+                    <th class="px-6 py-3 text-right text-red-600">Sisa Piutang</th>
+                    <th class="px-6 py-3 text-center">Status</th>
+                </tr>`;
+            } else if (currentTab === 'stok') {
+                head.innerHTML = `<tr>
+                    <th class="px-6 py-3">Nama Barang</th>
+                    <th class="px-6 py-3 text-center">Masuk</th>
+                    <th class="px-6 py-3 text-center">Keluar</th>
+                    <th class="px-6 py-3 text-center">Sisa Stok</th>
+                    <th class="px-6 py-3">Update Terakhir</th>
+                </tr>`;
+            }
+            applyFilter();
+        }
+
+        function applyFilter() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            const body = document.getElementById('tableBody');
+            const data = db[currentTab];
+            const filtered = data.filter(row => Object.values(row).some(v => String(v).toLowerCase().includes(query)));
+            body.innerHTML = '';
+            document.getElementById('rowCounter').innerText = `${filtered.length} Data ditemukan`;
+
+            filtered.forEach((row, index) => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition-colors border-b border-slate-50 cursor-pointer";
+                tr.onclick = () => showDetail(row);
+                
+                let html = '';
+                if (currentTab === 'transaksi') {
+                    const m = parseFloat(row["Masuk"]) || 0;
+                    const k = parseFloat(row["Keluar"]) || 0;
+                    html = `
+                        <td class="px-6 py-3"><div class="font-bold">${row["Waktu"]}</div><div class="text-[10px] text-slate-400 font-mono tracking-tighter">${row["ID"]}</div></td>
+                        <td class="px-6 py-3"><span class="px-2 py-0.5 bg-slate-100 rounded text-[11px] font-semibold">${row["Kategori"]}</span></td>
+                        <td class="px-6 py-3"><div class="line-clamp-1">${row["Keterangan"]}</div><div class="text-[10px] text-slate-400">Subjek: ${row["Subjek"]}</div></td>
+                        <td class="px-6 py-3 text-right text-green-600 font-bold">${m > 0 ? formatIDR(m) : '-'}</td>
+                        <td class="px-6 py-3 text-right text-red-600 font-bold">${k > 0 ? formatIDR(k) : '-'}</td>
+                    `;
+                } else if (currentTab === 'piutang') {
+                    const status = (row["Status"] || "").toLowerCase();
+                    const badge = status === 'lunas' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
+                    html = `
+                        <td class="px-6 py-3">${row["Waktu"]}</td>
+                        <td class="px-6 py-3 font-bold">${row["Nama Pelanggan"]}</td>
+                        <td class="px-6 py-3 text-right">${formatIDR(row["Total Tagihan"])}</td>
+                        <td class="px-6 py-3 text-right text-red-600 font-bold">${formatIDR(row["Sisa Piutang"])}</td>
+                        <td class="px-6 py-3 text-center"><span class="px-3 py-1 rounded-full text-[10px] font-bold uppercase ${badge}">${row["Status"]}</span></td>
+                    `;
+                } else if (currentTab === 'stok') {
+                    const sisa = parseFloat(row["Sisa Stok"]) || 0;
+                    html = `
+                        <td class="px-6 py-3 font-bold">${row["Nama Barang"]}</td>
+                        <td class="px-6 py-3 text-center text-green-600 font-semibold">${row["Masuk"]}</td>
+                        <td class="px-6 py-3 text-center text-red-600 font-semibold">${row["Keluar"]}</td>
+                        <td class="px-6 py-3 text-center"><span class="px-3 py-1 bg-blue-50 text-blue-700 rounded-lg font-bold">${sisa}</span></td>
+                        <td class="px-6 py-3 text-[10px] text-slate-500">${row["Update Terakhir"]}</td>
+                    `;
+                }
+                tr.innerHTML = html;
+                body.appendChild(tr);
+            });
+        }
+
+        // FUNGSI MODAL DETAIL
+        function showDetail(data) {
+            const modal = document.getElementById('detailModal');
+            const content = document.getElementById('modalContent');
+            const body = document.getElementById('modalBody');
+            
+            let html = '';
+            
+            if (currentTab === 'transaksi') {
+                let itemsHtml = '<p class="text-slate-400 italic text-sm">Tidak ada rincian item JSON</p>';
+                if (data["Detail JSON"]) {
+                    try {
+                        const items = JSON.parse(data["Detail JSON"]);
+                        if (Array.isArray(items)) {
+                            itemsHtml = `<div class="bg-slate-50 rounded-lg overflow-hidden border border-slate-100">
+                                <table class="w-full text-xs">
+                                    <thead class="bg-slate-200 text-slate-600">
+                                        <tr><th class="p-2 text-left">Item</th><th class="p-2 text-center">Qty</th><th class="p-2 text-right">Harga</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        ${items.map(i => `
+                                            <tr class="border-t border-slate-100">
+                                                <td class="p-2 font-medium">${i.nama || '-'}</td>
+                                                <td class="p-2 text-center">${i.qty || 1}</td>
+                                                <td class="p-2 text-right">${formatIDR(i.harga)}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>`;
+                        }
+                    } catch(e) { console.error("JSON Error", e); }
+                }
+
+                html = `
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div><label class="text-[10px] font-bold text-slate-400 uppercase">Waktu</label><p class="text-sm font-semibold">${data["Waktu"]}</p></div>
+                            <div><label class="text-[10px] font-bold text-slate-400 uppercase">ID Transaksi</label><p class="text-sm font-mono">${data["ID"]}</p></div>
+                        </div>
+                        <div><label class="text-[10px] font-bold text-slate-400 uppercase">Keterangan</label><p class="text-sm text-slate-700">${data["Keterangan"]}</p></div>
+                        <div class="grid grid-cols-3 gap-2">
+                            <div><label class="text-[10px] font-bold text-slate-400 uppercase">Tipe</label><p class="text-xs font-bold ${data["Tipe"]==='MASUK'?'text-green-600':'text-red-600'}">${data["Tipe"]}</p></div>
+                            <div><label class="text-[10px] font-bold text-slate-400 uppercase">Metode</label><p class="text-xs font-medium">${data["Metode"] || '-'}</p></div>
+                            <div><label class="text-[10px] font-bold text-slate-400 uppercase">Diskon</label><p class="text-xs font-medium">${formatIDR(data["Diskon"])}</p></div>
+                        </div>
+                        <div class="pt-2 border-t border-dashed border-slate-200">
+                            <label class="text-[10px] font-bold text-slate-400 uppercase mb-2 block">Rincian Item</label>
+                            ${itemsHtml}
+                        </div>
+                        <div class="flex justify-between items-center bg-blue-50 p-3 rounded-lg">
+                            <span class="text-xs font-bold text-blue-700 uppercase">Total Nominal</span>
+                            <span class="text-lg font-black text-blue-800">${formatIDR(parseFloat(data["Masuk"]) || parseFloat(data["Keluar"]))}</span>
+                        </div>
+                    </div>
+                `;
+            } else if (currentTab === 'piutang') {
+                html = `
+                    <div class="space-y-4 text-sm">
+                        <div class="flex justify-between border-b pb-2"><span class="text-slate-500">Pelanggan:</span><span class="font-bold">${data["Nama Pelanggan"]}</span></div>
+                        <div class="flex justify-between border-b pb-2"><span class="text-slate-500">Waktu:</span><span>${data["Waktu"]}</span></div>
+                        <div class="flex justify-between border-b pb-2"><span class="text-slate-500">ID Penjualan:</span><span class="font-mono text-xs">${data["ID_Penjualan"] || '-'}</span></div>
+                        <div class="flex justify-between border-b pb-2"><span class="text-slate-500">Total Tagihan:</span><span>${formatIDR(data["Total Tagihan"])}</span></div>
+                        <div class="flex justify-between border-b pb-2 text-green-600"><span class="text-slate-500">DP:</span><span>${formatIDR(data["DP"])}</span></div>
+                        <div class="flex justify-between font-bold text-red-600 text-lg border-t pt-2"><span>Sisa Piutang:</span><span>${formatIDR(data["Sisa Piutang"])}</span></div>
+                        <div class="text-center mt-4 pt-2">
+                             <span class="px-4 py-2 rounded-full text-xs font-bold uppercase ${(data["Status"]||"").toLowerCase()==='lunas'?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}">${data["Status"]}</span>
+                        </div>
+                    </div>
+                `;
+            } else if (currentTab === 'stok') {
+                html = `
+                    <div class="space-y-4 text-center">
+                        <i class="fas fa-box text-blue-200 text-5xl"></i>
+                        <h4 class="text-xl font-bold text-slate-800">${data["Nama Barang"]}</h4>
+                        <div class="grid grid-cols-3 gap-2 py-4 border-y border-slate-100">
+                            <div><div class="text-[10px] text-slate-400 font-bold uppercase">Masuk</div><div class="text-lg text-green-600 font-bold">${data["Masuk"]}</div></div>
+                            <div><div class="text-[10px] text-slate-400 font-bold uppercase">Keluar</div><div class="text-lg text-red-600 font-bold">${data["Keluar"]}</div></div>
+                            <div><div class="text-[10px] text-slate-400 font-bold uppercase">Sisa</div><div class="text-lg text-blue-600 font-black">${data["Sisa Stok"]}</div></div>
+                        </div>
+                        <p class="text-[10px] text-slate-400 italic font-medium">Update Terakhir: ${data["Update Terakhir"]}</p>
+                    </div>
+                `;
+            }
+
+            body.innerHTML = html;
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                content.classList.remove('scale-95', 'opacity-0');
+            }, 10);
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('detailModal');
+            const content = document.getElementById('modalContent');
+            content.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 200);
+        }
+
+        // Tutup modal jika klik di luar area modal
+        window.onclick = function(event) {
+            const modal = document.getElementById('detailModal');
+            if (event.target == modal) closeModal();
+        }
+
+        window.onload = fetchAllData;
+    </script>
+</body>
+</html>
