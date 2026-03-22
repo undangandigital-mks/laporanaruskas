@@ -190,7 +190,8 @@
                 db.transaksi = results[0];
                 db.piutang = results[1];
                 db.stok = results[2];
-                renderContent();
+                
+                setDateFilter('all');
             } catch (e) {
                 console.error(e);
             } finally {
@@ -211,18 +212,12 @@
             });
         }
 
-        /**
-         * CALCULATE STATS LOGIC
-         * - Pemasukan/Pengeluaran: Excludes "Transfer Saldo" category
-         * - Sisa Piutang: Always Global (Not affected by filters)
-         */
         function calculateStats() {
             let masuk = 0, keluar = 0, piutangTotal = 0;
             const skipCategory = "Transfer Saldo".toLowerCase();
 
             const processRow = (r) => {
                 const category = (r["Kategori"] || "").toLowerCase();
-                // Hanya hitung jika bukan Transfer Saldo (pemasukan/pengeluaran riil)
                 if (category !== skipCategory) {
                     masuk += parseFloat(r["Masuk"]) || 0;
                     keluar += parseFloat(r["Keluar"]) || 0;
@@ -238,13 +233,11 @@
                 
                 db.transaksi.forEach(r => {
                     let pass = Object.values(r).some(v => String(v).toLowerCase().includes(query));
-                    if (pass && dateFilterMode !== 'all') {
-                        const itemDate = new Date(r["Waktu"]).getTime();
-                        if (!isNaN(itemDate)) {
-                            const now = new Date();
-                            if (dateFilterMode === 'today') pass = itemDate >= new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-                            else if (dateFilterMode === 'month') pass = itemDate >= new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-                            else if (dateFilterMode === 'custom') {
+                    if (pass) {
+                        const dateStr = r["Waktu"];
+                        if(dateStr) {
+                            const itemDate = new Date(dateStr).getTime();
+                            if(!isNaN(itemDate)) {
                                 if(start) pass = pass && itemDate >= new Date(start).getTime();
                                 if(end) pass = pass && itemDate <= new Date(end).setHours(23, 59, 59, 999);
                             }
@@ -254,7 +247,6 @@
                 });
             }
 
-            // Global Piutang Calculation
             db.piutang.forEach(r => {
                 const sisa = parseFloat(r["Sisa Piutang"]) || 0;
                 const status = (r["Status"] || "").toLowerCase();
@@ -268,43 +260,104 @@
 
         function handleSearch() { currentPage = 1; applyFilter(); }
 
+        /**
+         * setDateFilter 
+         * Diperbarui agar 'month' mencari tanggal transaksi terakhir di bulan ini.
+         */
         function setDateFilter(mode) {
             dateFilterMode = mode;
             currentPage = 1;
+            
+            const startInput = document.getElementById('dateStart');
+            const endInput = document.getElementById('dateEnd');
+            const now = new Date();
+
+            const formatDate = (date) => {
+                const d = new Date(date);
+                if (isNaN(d.getTime())) return '';
+                let month = '' + (d.getMonth() + 1);
+                let day = '' + d.getDate();
+                let year = d.getFullYear();
+                if (month.length < 2) month = '0' + month;
+                if (day.length < 2) day = '0' + day;
+                return [year, month, day].join('-');
+            };
+
+            if (mode === 'today') {
+                const todayStr = formatDate(now);
+                startInput.value = todayStr;
+                endInput.value = todayStr;
+            } else if (mode === 'month') {
+                const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+                
+                // Cari tanggal transaksi terakhir di bulan berjalan (berdasarkan data transaksi)
+                let lastTransDate = new Date(now.getFullYear(), now.getMonth() + 1, 0); // Default ke akhir bulan kalender
+                
+                if (db.transaksi && db.transaksi.length > 0) {
+                    const currentMonth = now.getMonth();
+                    const currentYear = now.getFullYear();
+                    
+                    const monthTransDates = db.transaksi
+                        .map(r => new Date(r["Waktu"]))
+                        .filter(d => !isNaN(d.getTime()) && d.getMonth() === currentMonth && d.getFullYear() === currentYear);
+                    
+                    if (monthTransDates.length > 0) {
+                        lastTransDate = new Date(Math.max(...monthTransDates.map(d => d.getTime())));
+                    }
+                }
+                
+                startInput.value = formatDate(firstDay);
+                endInput.value = formatDate(lastTransDate);
+            } else if (mode === 'all') {
+                if (db.transaksi && db.transaksi.length > 0) {
+                    const dates = db.transaksi
+                        .map(r => new Date(r["Waktu"]).getTime())
+                        .filter(t => !isNaN(t));
+                    
+                    if (dates.length > 0) {
+                        const minDate = new Date(Math.min(...dates));
+                        const maxDate = new Date(Math.max(...dates));
+                        startInput.value = formatDate(minDate);
+                        endInput.value = formatDate(maxDate);
+                    } else {
+                        startInput.value = '';
+                        endInput.value = '';
+                    }
+                } else {
+                    startInput.value = '';
+                    endInput.value = '';
+                }
+            }
+
             ['all', 'today', 'month'].forEach(m => {
                 const el = document.getElementById(`btn-date-${m}`);
                 if(m === mode) el.classList.add('filter-btn-active');
                 else el.classList.remove('filter-btn-active');
             });
-            if(mode !== 'custom') {
-                document.getElementById('dateStart').value = '';
-                document.getElementById('dateEnd').value = '';
-            }
+
             applyFilter();
         }
 
         function handleDateChange() {
-            const start = document.getElementById('dateStart').value;
-            const end = document.getElementById('dateEnd').value;
-            if(start || end) {
-                dateFilterMode = 'custom';
-                ['all', 'today', 'month'].forEach(m => {
-                    document.getElementById(`btn-date-${m}`).classList.remove('filter-btn-active');
-                });
-                currentPage = 1;
-                applyFilter();
-            }
+            dateFilterMode = 'custom';
+            ['all', 'today', 'month'].forEach(m => {
+                document.getElementById(`btn-date-${m}`).classList.remove('filter-btn-active');
+            });
+            currentPage = 1;
+            applyFilter();
         }
 
         function resetDateRange() {
-            document.getElementById('dateStart').value = '';
-            document.getElementById('dateEnd').value = '';
             setDateFilter('all');
         }
 
         function applyFilter() {
             const query = document.getElementById('searchInput').value.toLowerCase();
+            const startVal = document.getElementById('dateStart').value;
+            const endVal = document.getElementById('dateEnd').value;
+
             let data = db[currentTab];
+            
             let result = data.filter(row => Object.values(row).some(v => String(v).toLowerCase().includes(query)));
 
             if (currentTab === 'piutang') {
@@ -314,27 +367,17 @@
                 });
             }
 
-            if (dateFilterMode !== 'all' && currentTab !== 'stok') {
-                const now = new Date();
-                const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-                const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-
+            if (currentTab !== 'stok' && (startVal || endVal)) {
                 result = result.filter(row => {
                     const dateStr = row["Waktu"] || row["Update Terakhir"];
                     if(!dateStr) return true;
                     const itemDate = new Date(dateStr).getTime();
                     if(isNaN(itemDate)) return true;
-                    if (dateFilterMode === 'today') return itemDate >= startOfToday;
-                    if (dateFilterMode === 'month') return itemDate >= startOfMonth;
-                    if (dateFilterMode === 'custom') {
-                        const s = document.getElementById('dateStart').value;
-                        const e = document.getElementById('dateEnd').value;
-                        let pass = true;
-                        if(s) pass = pass && itemDate >= new Date(s).getTime();
-                        if(e) pass = pass && itemDate <= new Date(e).setHours(23, 59, 59, 999);
-                        return pass;
-                    }
-                    return true;
+                    
+                    let pass = true;
+                    if(startVal) pass = pass && itemDate >= new Date(startVal).getTime();
+                    if(endVal) pass = pass && itemDate <= new Date(endVal).setHours(23, 59, 59, 999);
+                    return pass;
                 });
             }
 
