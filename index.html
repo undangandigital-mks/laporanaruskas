@@ -13,7 +13,7 @@
         .card-shadow { box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
         .table-container { max-height: calc(100vh - 550px); overflow-y: auto; }
         @media (max-width: 640px) {
-            .table-container { max-height: calc(100vh - 620px); }
+            .table-container { max-height: calc(100vh - 650px); }
         }
         .loader { border-top-color: #3b82f6; animation: spinner 1.5s linear infinite; }
         @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -55,7 +55,7 @@
         </div>
 
         <!-- Dashboard Stats -->
-        <div id="statsGrid" class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-5">
+        <div id="statsGrid" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
             <div class="bg-white p-4 rounded-xl card-shadow border-l-4 border-green-500">
                 <div class="text-[10px] font-bold text-slate-400 uppercase leading-tight mb-1">Pendapatan Riil</div>
                 <div id="totalMasuk" class="text-sm md:text-lg font-bold text-slate-800 truncate">Rp 0</div>
@@ -64,8 +64,12 @@
                 <div class="text-[10px] font-bold text-slate-400 uppercase leading-tight mb-1">Biaya Riil</div>
                 <div id="totalKeluar" class="text-sm md:text-lg font-bold text-slate-800 truncate">Rp 0</div>
             </div>
-            <div class="bg-white p-4 rounded-xl card-shadow border-l-4 border-blue-500 col-span-2 md:col-span-1">
-                <div class="text-[10px] font-bold text-slate-400 uppercase leading-tight mb-1">Total Sisa Piutang</div>
+            <div class="bg-white p-4 rounded-xl card-shadow border-l-4 border-blue-500">
+                <div class="text-[10px] font-bold text-slate-400 uppercase leading-tight mb-1">Total Saldo</div>
+                <div id="totalSaldo" class="text-sm md:text-lg font-bold text-blue-700 truncate">Rp 0</div>
+            </div>
+            <div class="bg-white p-4 rounded-xl card-shadow border-l-4 border-orange-500">
+                <div class="text-[10px] font-bold text-slate-400 uppercase leading-tight mb-1">Total Piutang</div>
                 <div id="totalPiutang" class="text-sm md:text-lg font-bold text-slate-800 truncate">Rp 0</div>
             </div>
         </div>
@@ -224,28 +228,26 @@
                 }
             };
 
-            if (currentTab === 'transaksi') {
-                filteredData.forEach(processRow);
-            } else {
-                const query = document.getElementById('searchInput').value.toLowerCase();
-                const start = document.getElementById('dateStart').value;
-                const end = document.getElementById('dateEnd').value;
-                
-                db.transaksi.forEach(r => {
-                    let pass = Object.values(r).some(v => String(v).toLowerCase().includes(query));
-                    if (pass) {
-                        const dateStr = r["Waktu"];
-                        if(dateStr) {
-                            const itemDate = new Date(dateStr).getTime();
-                            if(!isNaN(itemDate)) {
-                                if(start) pass = pass && itemDate >= new Date(start).getTime();
-                                if(end) pass = pass && itemDate <= new Date(end).setHours(23, 59, 59, 999);
-                            }
+            // Calculate income/expense based on filtered data (for current context)
+            // But we often want overall filtered context for stats
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            const start = document.getElementById('dateStart').value;
+            const end = document.getElementById('dateEnd').value;
+
+            db.transaksi.forEach(r => {
+                let pass = Object.values(r).some(v => String(v).toLowerCase().includes(query));
+                if (pass) {
+                    const dateStr = r["Waktu"];
+                    if(dateStr) {
+                        const itemDate = new Date(dateStr).getTime();
+                        if(!isNaN(itemDate)) {
+                            if(start) pass = pass && itemDate >= new Date(start).getTime();
+                            if(end) pass = pass && itemDate <= new Date(end).setHours(23, 59, 59, 999);
                         }
                     }
-                    if (pass) processRow(r);
-                });
-            }
+                }
+                if (pass) processRow(r);
+            });
 
             db.piutang.forEach(r => {
                 const sisa = parseFloat(r["Sisa Piutang"]) || 0;
@@ -253,17 +255,26 @@
                 if (sisa > 0 && status !== 'lunas') piutangTotal += sisa;
             });
 
+            const totalSaldo = masuk - keluar;
+
             document.getElementById('totalMasuk').innerText = formatIDR(masuk);
             document.getElementById('totalKeluar').innerText = formatIDR(keluar);
+            document.getElementById('totalSaldo').innerText = formatIDR(totalSaldo);
             document.getElementById('totalPiutang').innerText = formatIDR(piutangTotal);
+
+            // Change color if balance is negative
+            const saldoEl = document.getElementById('totalSaldo');
+            if (totalSaldo < 0) {
+                saldoEl.classList.remove('text-blue-700');
+                saldoEl.classList.add('text-red-700');
+            } else {
+                saldoEl.classList.remove('text-red-700');
+                saldoEl.classList.add('text-blue-700');
+            }
         }
 
         function handleSearch() { currentPage = 1; applyFilter(); }
 
-        /**
-         * setDateFilter 
-         * Diperbarui agar 'month' mencari tanggal transaksi terakhir di bulan ini.
-         */
         function setDateFilter(mode) {
             dateFilterMode = mode;
             currentPage = 1;
@@ -289,14 +300,11 @@
                 endInput.value = todayStr;
             } else if (mode === 'month') {
                 const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-                
-                // Cari tanggal transaksi terakhir di bulan berjalan (berdasarkan data transaksi)
-                let lastTransDate = new Date(now.getFullYear(), now.getMonth() + 1, 0); // Default ke akhir bulan kalender
+                let lastTransDate = new Date(now.getFullYear(), now.getMonth() + 1, 0); 
                 
                 if (db.transaksi && db.transaksi.length > 0) {
                     const currentMonth = now.getMonth();
                     const currentYear = now.getFullYear();
-                    
                     const monthTransDates = db.transaksi
                         .map(r => new Date(r["Waktu"]))
                         .filter(d => !isNaN(d.getTime()) && d.getMonth() === currentMonth && d.getFullYear() === currentYear);
