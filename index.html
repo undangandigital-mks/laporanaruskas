@@ -369,38 +369,51 @@
         function resetDateRange() { setDateFilter('all'); }
 
         function applyFilter() {
-            const query = document.getElementById('searchInput').value.toLowerCase();
-            const startVal = document.getElementById('dateStart').value;
-            const endVal = document.getElementById('dateEnd').value;
+    const query = document.getElementById('searchInput').value.toLowerCase();
+    const startVal = document.getElementById('dateStart').value;
+    const endVal = document.getElementById('dateEnd').value;
 
-            let data = db[currentTab] || [];
+    let data = db[currentTab] || [];
+    
+    // 1. Filter berdasarkan pencarian kata kunci
+    let result = data.filter(row => Object.values(row).some(v => String(v).toLowerCase().includes(query)));
+
+    // 2. Filter khusus Piutang (hanya yang belum lunas)
+    if (currentTab === 'piutang') {
+        result = result.filter(row => (parseFloat(row["Sisa Piutang"]) || 0) > 0);
+    }
+
+    // 3. Filter berdasarkan Tanggal (kecuali tab stok)
+    if (currentTab !== 'stok' && (startVal || endVal)) {
+        result = result.filter(row => {
+            const dateStr = row["Waktu"] || row["Update Terakhir"];
+            if(!dateStr) return true;
+            const itemTime = new Date(dateStr).getTime();
+            if(isNaN(itemTime)) return true;
             
-            let result = data.filter(row => Object.values(row).some(v => String(v).toLowerCase().includes(query)));
+            let pass = true;
+            if(startVal) pass = pass && itemTime >= new Date(startVal).getTime();
+            if(endVal) pass = pass && itemTime <= new Date(endVal).setHours(23, 59, 59, 999);
+            return pass;
+        });
+    }
 
-            if (currentTab === 'piutang') {
-                result = result.filter(row => (parseFloat(row["Sisa Piutang"]) || 0) > 0);
-            }
+    // --- TAMBAHKAN LOGIKA PENGURUTAN DI SINI ---
+    if (currentTab === 'stok') {
+        result.sort((a, b) => {
+            const namaA = (a["Nama Barang"] || "").toLowerCase();
+            const namaB = (b["Nama Barang"] || "").toLowerCase();
+            return namaA.localeCompare(namaB);
+        });
+    }
+    // ------------------------------------------
 
-            if (currentTab !== 'stok' && (startVal || endVal)) {
-                result = result.filter(row => {
-                    const dateStr = row["Waktu"] || row["Update Terakhir"];
-                    if(!dateStr) return true;
-                    const itemTime = new Date(dateStr).getTime();
-                    if(isNaN(itemTime)) return true;
-                    
-                    let pass = true;
-                    if(startVal) pass = pass && itemTime >= new Date(startVal).getTime();
-                    if(endVal) pass = pass && itemTime <= new Date(endVal).setHours(23, 59, 59, 999);
-                    return pass;
-                });
-            }
-
-            filteredData = result;
-            document.getElementById('rowCounter').innerText = `${filteredData.length} DATA DITEMUKAN`;
-            calculateStats(); 
-            updatePagination();
-            renderTableBody();
-        }
+    filteredData = result;
+    document.getElementById('rowCounter').innerText = `${filteredData.length} DATA DITEMUKAN`;
+    calculateStats(); 
+    updatePagination();
+    renderTableBody();
+}
 
         function updatePagination() {
             const totalPages = Math.ceil(filteredData.length / rowsPerPage) || 1;
