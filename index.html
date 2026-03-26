@@ -400,12 +400,27 @@
 
     // --- TAMBAHKAN LOGIKA PENGURUTAN DI SINI ---
     if (currentTab === 'stok') {
-        result.sort((a, b) => {
-            const namaA = (a["Nama Barang"] || "").toLowerCase();
-            const namaB = (b["Nama Barang"] || "").toLowerCase();
-            return namaA.localeCompare(namaB);
-        });
-    }
+    // Proses Grouping (Menyatukan nama yang sama)
+    const grouped = result.reduce((acc, item) => {
+        const nama = (item["Nama Barang"] || "").trim(); // .trim() menghapus spasi tak sengaja
+        if (!acc[nama]) {
+            acc[nama] = { ...item, 
+                "Masuk": 0, 
+                "Keluar": 0, 
+                "Sisa Stok": 0 
+            };
+        }
+        acc[nama]["Masuk"] += parseFloat(item["Masuk"]) || 0;
+        acc[nama]["Keluar"] += parseFloat(item["Keluar"]) || 0;
+        acc[nama]["Sisa Stok"] += parseFloat(item["Sisa Stok"]) || 0;
+        return acc;
+    }, {});
+
+    // Ubah kembali menjadi Array dan Urutkan Abjad
+    result = Object.values(grouped).sort((a, b) => 
+        a["Nama Barang"].localeCompare(b["Nama Barang"])
+    );
+}
     // ------------------------------------------
 
     filteredData = result;
