@@ -258,8 +258,8 @@
         }
 
 
-        function calculateStats() {
-    let masuk = 0, keluar = 0, piutangTotal = 0, totalRefund = 0;
+       function calculateStats() {
+    let masuk = 0, keluar = 0, piutangTerfilter = 0, piutangTotalSemua = 0, totalRefund = 0;
     
     const excludedCategories = ["transfer saldo", "saldo awal"];
     const refundCategory = "pengembalian dana"; 
@@ -268,6 +268,7 @@
     const start = document.getElementById('dateStart').value;
     const end = document.getElementById('dateEnd').value;
 
+    // 1. HITUNG TRANSAKSI (DENGAN FILTER)
     db.transaksi.forEach(r => {
         let pass = Object.values(r).some(v => String(v).toLowerCase().includes(query));
         if (pass && (start || end)) {
@@ -290,7 +291,6 @@
                 const rKeluar = parseFloat(r["Keluar"]) || 0;
 
                 if (category.includes(refundCategory)) {
-                    // Refund mengurangi pendapatan, tapi tetap masuk hitungan uang keluar fisik
                     totalRefund += rKeluar;
                 } else {
                     masuk += rMasuk;
@@ -300,33 +300,54 @@
         }
     });
 
+    // 2. HITUNG PIUTANG (DUA LOGIKA)
     db.piutang.forEach(r => {
         const sisa = parseFloat(r["Sisa Piutang"]) || 0;
         const status = (r["Status"] || "").toLowerCase();
-        if (sisa > 0 && status !== 'lunas') piutangTotal += sisa;
+        
+        if (sisa > 0 && status !== 'lunas') {
+            // A. LOGIKA UNTUK KOTAK SISA PIUTANG (TANPA FILTER)
+            piutangTotalSemua += sisa;
+
+            // B. LOGIKA UNTUK TOTAL PENDAPATAN (DENGAN FILTER)
+            let passPiutang = Object.values(r).some(v => String(v).toLowerCase().includes(query));
+            if (passPiutang && (start || end)) {
+                const dateStr = r["Waktu"]; // Pastikan ada kolom "Waktu" di tab Piutang
+                if(dateStr) {
+                    const itemTime = new Date(dateStr).getTime();
+                    if(!isNaN(itemTime)) {
+                        if(start) passPiutang = passPiutang && itemTime >= new Date(start).getTime();
+                        if(end) passPiutang = passPiutang && itemTime <= new Date(end).setHours(23, 59, 59, 999);
+                    }
+                }
+            }
+            if (passPiutang) {
+                piutangTerfilter += sisa;
+            }
+        }
     });
 
     // --- KALKULASI AKHIR ---
     
-    // 1. Pendapatan = (Masuk Bersih) + Sisa Piutang
-    const pendapatanFinal = (masuk - totalRefund) + piutangTotal;
+    // Pendapatan = (Uang Masuk Terfilter - Refund Terfilter) + Piutang Terfilter
+    const pendapatanFinal = (masuk - totalRefund) + piutangTerfilter;
     
-    // 2. Laba Kotor (Saldo Fisik) = Masuk - (Keluar + Refund)
+    // Laba Kotor = Uang Masuk Terfilter - (Keluar Terfilter + Refund Terfilter)
     const labaKotor = masuk - (keluar + totalRefund);
 
-    // Update UI
+    // Update UI Dashboard
     document.getElementById('totalMasuk').innerText = formatIDR(pendapatanFinal);
     document.getElementById('totalKeluar').innerText = formatIDR(keluar); 
-    document.getElementById('totalSaldo').innerText = formatIDR(labaKotor); // Ini sekarang menampilkan Laba Kotor
-    document.getElementById('totalPiutang').innerText = formatIDR(piutangTotal);
+    document.getElementById('totalSaldo').innerText = formatIDR(labaKotor); 
+    
+    // Tampilan Sisa Piutang menggunakan total keseluruhan (tanpa filter)
+    document.getElementById('totalPiutang').innerText = formatIDR(piutangTotalSemua);
 
-    // Warna teks merah jika Laba Kotor negatif
     const saldoEl = document.getElementById('totalSaldo');
     saldoEl.className = labaKotor < 0 
         ? "text-xs md:text-lg font-bold text-red-600 truncate" 
         : "text-xs md:text-lg font-bold text-blue-700 truncate";
 }
-
         
 
         function handleSearch() { currentPage = 1; applyFilter(); }
