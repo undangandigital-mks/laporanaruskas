@@ -252,56 +252,78 @@
             });
         }
 
+
+        
+
         function calculateStats() {
-            let masuk = 0, keluar = 0, piutangTotal = 0;
-            const skipCategory = "Transfer Saldo".toLowerCase();
+    let masuk = 0, keluar = 0, piutangTotal = 0, totalRefund = 0;
+    
+    const excludedCategories = ["transfer saldo", "saldo awal"];
+    const refundCategory = "pengembalian dana"; 
 
-            const query = document.getElementById('searchInput').value.toLowerCase();
-            const start = document.getElementById('dateStart').value;
-            const end = document.getElementById('dateEnd').value;
+    const query = document.getElementById('searchInput').value.toLowerCase();
+    const start = document.getElementById('dateStart').value;
+    const end = document.getElementById('dateEnd').value;
 
-            db.transaksi.forEach(r => {
-                let pass = Object.values(r).some(v => String(v).toLowerCase().includes(query));
-                if (pass && (start || end)) {
-                    const dateStr = r["Waktu"];
-                    if(dateStr) {
-                        const itemTime = new Date(dateStr).getTime();
-                        if(!isNaN(itemTime)) {
-                            if(start) pass = pass && itemTime >= new Date(start).getTime();
-                            if(end) pass = pass && itemTime <= new Date(end).setHours(23, 59, 59, 999);
-                        }
-                    }
+    db.transaksi.forEach(r => {
+        let pass = Object.values(r).some(v => String(v).toLowerCase().includes(query));
+        if (pass && (start || end)) {
+            const dateStr = r["Waktu"];
+            if(dateStr) {
+                const itemTime = new Date(dateStr).getTime();
+                if(!isNaN(itemTime)) {
+                    if(start) pass = pass && itemTime >= new Date(start).getTime();
+                    if(end) pass = pass && itemTime <= new Date(end).setHours(23, 59, 59, 999);
                 }
-                
-                if (pass) {
-                    const category = (r["Kategori"] || "").toLowerCase();
-                    if (category !== skipCategory) {
-                        masuk += parseFloat(r["Masuk"]) || 0;
-                        keluar += parseFloat(r["Keluar"]) || 0;
-                    }
-                }
-            });
-
-            db.piutang.forEach(r => {
-                const sisa = parseFloat(r["Sisa Piutang"]) || 0;
-                const status = (r["Status"] || "").toLowerCase();
-                if (sisa > 0 && status !== 'lunas') piutangTotal += sisa;
-            });
-
-            const totalSaldo = masuk - keluar;
-
-            document.getElementById('totalMasuk').innerText = formatIDR(masuk);
-            document.getElementById('totalKeluar').innerText = formatIDR(keluar);
-            document.getElementById('totalSaldo').innerText = formatIDR(totalSaldo);
-            document.getElementById('totalPiutang').innerText = formatIDR(piutangTotal);
-
-            const saldoEl = document.getElementById('totalSaldo');
-            if (totalSaldo < 0) {
-                saldoEl.className = "text-xs md:text-lg font-bold text-red-600 truncate";
-            } else {
-                saldoEl.className = "text-xs md:text-lg font-bold text-blue-700 truncate";
             }
         }
+        
+        if (pass) {
+            const category = (r["Kategori"] || "").toLowerCase().trim();
+            const isExcluded = excludedCategories.some(excluded => category.includes(excluded));
+            
+            if (!isExcluded) {
+                const rMasuk = parseFloat(r["Masuk"]) || 0;
+                const rKeluar = parseFloat(r["Keluar"]) || 0;
+
+                if (category.includes(refundCategory)) {
+                    // Refund tetap dicatat sebagai pengurang pendapatan
+                    totalRefund += rKeluar;
+                } else {
+                    // Transaksi operasional normal
+                    masuk += rMasuk;
+                    keluar += rKeluar;
+                }
+            }
+        }
+    });
+
+    db.piutang.forEach(r => {
+        const sisa = parseFloat(r["Sisa Piutang"]) || 0;
+        const status = (r["Status"] || "").toLowerCase();
+        if (sisa > 0 && status !== 'lunas') piutangTotal += sisa;
+    });
+
+    // --- KALKULASI SESUAI PERMINTAAN ANDA ---
+    
+    // Pendapatan Dashboard (Omzet Bersih + Piutang)
+    const pendapatanFinal = (masuk - totalRefund) + piutangTotal;
+    
+    // Saldo Fisik = Total Semua Uang Masuk - Total Semua Uang Keluar (termasuk refund)
+    // Rumus sederhananya: Pendapatan Riil di tangan - Pengeluaran Riil di tangan
+    const totalSaldo = masuk - (keluar + totalRefund);
+
+    // Update UI
+    document.getElementById('totalMasuk').innerText = formatIDR(pendapatanFinal);
+    document.getElementById('totalKeluar').innerText = formatIDR(keluar); // Menampilkan biaya operasional saja
+    document.getElementById('totalSaldo').innerText = formatIDR(totalSaldo);
+    document.getElementById('totalPiutang').innerText = formatIDR(piutangTotal);
+
+    const saldoEl = document.getElementById('totalSaldo');
+    saldoEl.className = totalSaldo < 0 
+        ? "text-xs md:text-lg font-bold text-red-600 truncate" 
+        : "text-xs md:text-lg font-bold text-blue-700 truncate";
+}
 
         function handleSearch() { currentPage = 1; applyFilter(); }
 
