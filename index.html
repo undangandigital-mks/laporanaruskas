@@ -95,10 +95,15 @@
                 <div class="text-[9px] font-bold text-slate-400 uppercase mb-1">Pengeluaran</div>
                 <div id="totalKeluar" class="text-xs md:text-lg font-bold text-slate-800 truncate">Rp 0</div>
             </div>
-            <div class="bg-white p-3 md:p-4 rounded-xl card-shadow border-l-4 border-blue-500">
-                <div class="text-[9px] font-bold text-slate-400 uppercase mb-1">Total Saldo</div>
-                <div id="totalSaldo" class="text-xs md:text-lg font-bold text-blue-700 truncate">Rp 0</div>
-            </div>
+            <div class="bg-white p-3 md:p-4 rounded-xl md:rounded-2xl card-shadow border-l-4 border-blue-600">
+    <div class="flex items-center justify-between mb-1 md:mb-2">
+        <div class="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-wider">Laba Kotor</div>
+        <div class="w-7 h-7 md:w-8 md:h-8 bg-blue-50 rounded-lg flex items-center justify-center">
+            <i class="fas fa-wallet text-blue-600 text-xs md:text-sm"></i>
+        </div>
+    </div>
+    <div class="text-xs md:text-lg font-bold text-blue-700 truncate" id="totalSaldo">Rp 0</div>
+</div>
             <div class="bg-white p-3 md:p-4 rounded-xl card-shadow border-l-4 border-orange-500">
                 <div class="text-[9px] font-bold text-slate-400 uppercase mb-1">Sisa Piutang</div>
                 <div id="totalPiutang" class="text-xs md:text-lg font-bold text-slate-800 truncate">Rp 0</div>
@@ -253,8 +258,6 @@
         }
 
 
-        
-
         function calculateStats() {
     let masuk = 0, keluar = 0, piutangTotal = 0, totalRefund = 0;
     
@@ -287,10 +290,9 @@
                 const rKeluar = parseFloat(r["Keluar"]) || 0;
 
                 if (category.includes(refundCategory)) {
-                    // Refund tetap dicatat sebagai pengurang pendapatan
+                    // Refund mengurangi pendapatan, tapi tetap masuk hitungan uang keluar fisik
                     totalRefund += rKeluar;
                 } else {
-                    // Transaksi operasional normal
                     masuk += rMasuk;
                     keluar += rKeluar;
                 }
@@ -304,26 +306,28 @@
         if (sisa > 0 && status !== 'lunas') piutangTotal += sisa;
     });
 
-    // --- KALKULASI SESUAI PERMINTAAN ANDA ---
+    // --- KALKULASI AKHIR ---
     
-    // Pendapatan Dashboard (Omzet Bersih + Piutang)
+    // 1. Pendapatan = (Masuk Bersih) + Sisa Piutang
     const pendapatanFinal = (masuk - totalRefund) + piutangTotal;
     
-    // Saldo Fisik = Total Semua Uang Masuk - Total Semua Uang Keluar (termasuk refund)
-    // Rumus sederhananya: Pendapatan Riil di tangan - Pengeluaran Riil di tangan
-    const totalSaldo = masuk - (keluar + totalRefund);
+    // 2. Laba Kotor (Saldo Fisik) = Masuk - (Keluar + Refund)
+    const labaKotor = masuk - (keluar + totalRefund);
 
     // Update UI
     document.getElementById('totalMasuk').innerText = formatIDR(pendapatanFinal);
-    document.getElementById('totalKeluar').innerText = formatIDR(keluar); // Menampilkan biaya operasional saja
-    document.getElementById('totalSaldo').innerText = formatIDR(totalSaldo);
+    document.getElementById('totalKeluar').innerText = formatIDR(keluar); 
+    document.getElementById('totalSaldo').innerText = formatIDR(labaKotor); // Ini sekarang menampilkan Laba Kotor
     document.getElementById('totalPiutang').innerText = formatIDR(piutangTotal);
 
+    // Warna teks merah jika Laba Kotor negatif
     const saldoEl = document.getElementById('totalSaldo');
-    saldoEl.className = totalSaldo < 0 
+    saldoEl.className = labaKotor < 0 
         ? "text-xs md:text-lg font-bold text-red-600 truncate" 
         : "text-xs md:text-lg font-bold text-blue-700 truncate";
 }
+
+        
 
         function handleSearch() { currentPage = 1; applyFilter(); }
 
