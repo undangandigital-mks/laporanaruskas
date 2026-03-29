@@ -451,20 +451,111 @@ function renderLabaRugi() {
 }
 
 function showPage(pageId) {
+    // 1. Sembunyikan semua elemen dengan class page-content
     document.querySelectorAll('.page-content').forEach(p => p.classList.add('hidden'));
-    document.getElementById(pageId + 'Page').classList.remove('hidden');
+    
+    // 2. Jika Anda punya div khusus dashboard, sembunyikan juga (opsional tergantung struktur Anda)
+    // document.getElementById('dashboardSection')?.classList.add('hidden'); 
 
-    if (pageId === 'labarugi') {
-        // SINKRONISASI: Salin nilai dari Dashboard ke Filter Laba Rugi
+    // 3. Tampilkan halaman yang dipilih
+    const targetPage = document.getElementById(pageId + 'Page');
+    if (targetPage) {
+        targetPage.classList.remove('hidden');
+    }
+
+    // 4. Jalankan fungsi render sesuai halaman
+    if (pageId === 'kas') {
+        renderLaporanKas();
+    } else if (pageId === 'labarugi') {
+        // Sinkronisasi filter tanggal dari dashboard ke filter lokal Laba Rugi
         document.getElementById('lrDateStart').value = document.getElementById('dateStart').value;
         document.getElementById('lrDateEnd').value = document.getElementById('dateEnd').value;
-        
         renderLabaRugi();
     }
-    
-    if (pageId === 'kas') renderLaporanKas();
 }
 
+function renderLaporanKas() {
+    const kasContent = document.getElementById('kasContent');
+    let saldoPerMetode = {
+        "Cash": 0,
+        "Rekening": 0
+    };
+
+    db.transaksi.forEach(r => {
+        const metode = r["Metode"] || "Lainnya";
+        const masuk = parseFloat(r["Masuk"]) || 0;
+        const keluar = parseFloat(r["Keluar"]) || 0;
+        
+        if (saldoPerMetode[metode] === undefined) {
+            saldoPerMetode[metode] = 0;
+        }
+        
+        saldoPerMetode[metode] += (masuk - keluar);
+    });
+
+    let html = '';
+    for (let tipe in saldoPerMetode) {
+        const isCash = tipe.toLowerCase() === 'cash';
+        html += `
+            <div class="bg-white p-5 rounded-2xl border-l-4 ${isCash ? 'border-green-500' : 'border-blue-500'} card-shadow">
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="w-8 h-8 rounded-full ${isCash ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'} flex items-center justify-center">
+                        <i class="fas ${isCash ? 'fa-money-bill-wave' : 'fa-university'} text-xs"></i>
+                    </div>
+                    <div class="text-[10px] text-slate-500 uppercase font-bold tracking-wider">${tipe}</div>
+                </div>
+                <div class="text-xl font-black text-slate-800">${formatIDR(saldoPerMetode[tipe])}</div>
+            </div>
+        `;
+    }
+    kasContent.innerHTML = html;
+}
+
+function renderLabaRugi() {
+    const container = document.getElementById('labarugiContent');
+    let pendapatan = 0;
+    let beban = 0;
+    let pengembalian = 0;
+
+    db.transaksi.forEach(r => {
+        const cat = (r["Kategori"] || "").toLowerCase();
+        if (cat.includes("pengembalian dana")) {
+            pengembalian += parseFloat(r["Keluar"]) || 0;
+        } else if (!["transfer saldo", "saldo awal"].some(ex => cat.includes(ex))) {
+            pendapatan += parseFloat(r["Masuk"]) || 0;
+            beban += parseFloat(r["Keluar"]) || 0;
+        }
+    });
+
+    const labaBersih = (pendapatan - pengembalian) - beban;
+
+    container.innerHTML = `
+        <div class="space-y-4">
+            <div class="flex justify-between border-b pb-2">
+                <span>Pendapatan Penjualan</span>
+                <span class="text-green-600 font-bold">${formatIDR(pendapatan)}</span>
+            </div>
+            <div class="flex justify-between border-b pb-2">
+                <span>Pengembalian Dana (Refund)</span>
+                <span class="text-red-600">(${formatIDR(pengembalian)})</span>
+            </div>
+            <div class="flex justify-between font-bold text-lg pt-2">
+                <span>Pendapatan Bersih</span>
+                <span>${formatIDR(pendapatan - pengembalian)}</span>
+            </div>
+            <div class="flex justify-between border-b pb-2 text-red-500">
+                <span>Total Beban Operasional</span>
+                <span>-${formatIDR(beban)}</span>
+            </div>
+            <div class="flex justify-between font-black text-xl pt-4 ${labaBersih >= 0 ? 'text-blue-700' : 'text-red-700'}">
+                <span>LABA/RUGI BERSIH</span>
+                <span>${formatIDR(labaBersih)}</span>
+            </div>
+        </div>
+    `;
+}
+
+        
 // Fungsi Reset jika ingin kembali ke pengaturan awal
 function resetLRFilter() {
     document.getElementById('lrDateStart').value = document.getElementById('dateStart').value;
