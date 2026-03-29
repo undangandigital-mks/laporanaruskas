@@ -33,10 +33,11 @@
         }
 
         @media (min-width: 768px) {
-            .table-container { 
-                max-height: calc(100vh - 520px); 
-            }
-        }
+    .table-container { 
+        max-height: none !important; /* Menghapus batas tinggi di desktop */
+        overflow-y: visible !important; /* Menghilangkan scrollbar internal */
+    }
+}
 
         .loader { border-top-color: #3b82f6; animation: spinner 1.5s linear infinite; }
         @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
