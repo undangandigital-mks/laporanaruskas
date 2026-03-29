@@ -74,26 +74,23 @@
 
         <!-- Tab Navigation -->
         <div class="flex border-b border-slate-200 mb-5 bg-white rounded-t-xl px-2 overflow-x-auto no-scrollbar">
-            <button onclick="switchTab('transaksi')" id="tab-transaksi" class="px-4 md:px-6 py-4 text-xs md:text-sm font-medium transition-all tab-active whitespace-nowrap">
-                <i class="fas fa-exchange-alt mr-2"></i>Transaksi
-            </button>
-            <button onclick="switchTab('piutang')" id="tab-piutang" class="px-4 md:px-6 py-4 text-xs md:text-sm font-medium transition-all text-slate-500 hover:text-blue-600 whitespace-nowrap">
-                <i class="fas fa-hand-holding-usd mr-2"></i>Piutang
-            </button>
-            <button onclick="switchTab('stok')" id="tab-stok" class="px-4 md:px-6 py-4 text-xs md:text-sm font-medium transition-all text-slate-500 hover:text-blue-600 whitespace-nowrap">
-                <i class="fas fa-boxes mr-2"></i>Stok
-            </button>
-            <button onclick="showPage('kas')" class="nav-btn flex flex-col items-center justify-center w-full h-full text-slate-400" id="btn-kas">
-    <i class="fas fa-cash-register text-lg mb-1"></i>
-    <span class="text-[10px] font-medium">Saldo Kas</span>
-</button>
-
-<button onclick="showPage('labarugi')" class="nav-btn flex flex-col items-center justify-center w-full h-full text-slate-400" id="btn-labarugi">
-    <i class="fas fa-chart-line text-lg mb-1"></i>
-    <span class="text-[10px] font-medium">Laba Rugi</span>
-</button>
-        </div>
-
+    <button onclick="switchTab('transaksi')" id="tab-transaksi" class="px-4 md:px-6 py-4 text-xs md:text-sm font-medium transition-all tab-active whitespace-nowrap">
+        <i class="fas fa-exchange-alt mr-2"></i>Transaksi
+    </button>
+    <button onclick="switchTab('piutang')" id="tab-piutang" class="px-4 md:px-6 py-4 text-xs md:text-sm font-medium transition-all text-slate-500 whitespace-nowrap">
+        <i class="fas fa-hand-holding-usd mr-2"></i>Piutang
+    </button>
+    <button onclick="switchTab('stok')" id="tab-stok" class="px-4 md:px-6 py-4 text-xs md:text-sm font-medium transition-all text-slate-500 whitespace-nowrap">
+        <i class="fas fa-boxes mr-2"></i>Stok
+    </button>
+    
+    <button onclick="switchTab('kas')" id="tab-kas" class="px-4 md:px-6 py-4 text-xs md:text-sm font-medium transition-all text-slate-500 whitespace-nowrap">
+        <i class="fas fa-cash-register mr-2"></i>Saldo Kas
+    </button>
+    <button onclick="switchTab('labarugi')" id="tab-labarugi" class="px-4 md:px-6 py-4 text-xs md:text-sm font-medium transition-all text-slate-500 whitespace-nowrap">
+        <i class="fas fa-chart-line mr-2"></i>Laba Rugi
+    </button>
+</div>
         <!-- Dashboard Stats -->
         <div id="statsGrid" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
             <div class="bg-white p-3 md:p-4 rounded-xl card-shadow border-l-4 border-green-500">
@@ -242,15 +239,59 @@
         }
 
         function switchTab(tab) {
-            currentTab = tab;
-            currentPage = 1;
-            ['transaksi', 'piutang', 'stok'].forEach(t => {
-                const el = document.getElementById(`tab-${t}`);
-                if(t === tab) el.classList.add('tab-active');
-                else el.classList.remove('tab-active');
-            });
-            renderContent();
+    // 1. Reset State Global
+    currentTab = tab;
+    currentPage = 1;
+
+    // 2. Sembunyikan SEMUA elemen konten terlebih dahulu
+    // Sembunyikan Halaman Konten (page-content)
+    document.querySelectorAll('.page-content').forEach(p => p.classList.add('hidden'));
+    // Sembunyikan Elemen Utama Dashboard (Filter & Tabel)
+    const mainDashboardElements = [
+        document.getElementById('statsGrid'),
+        document.querySelector('.bg-white.p-4.rounded-xl.card-shadow'), // Container Filter
+        document.querySelector('.bg-white.rounded-xl.card-shadow.overflow-hidden') // Container Tabel
+    ];
+    mainDashboardElements.forEach(el => el?.classList.add('hidden'));
+
+    // 3. Update Visual Tombol Navigasi (Menghapus class aktif dari semua tombol)
+    document.querySelectorAll('[id^="tab-"], .nav-btn').forEach(btn => {
+        btn.classList.remove('tab-active', 'text-blue-600', 'font-bold');
+        btn.classList.add('text-slate-500');
+    });
+
+    // 4. Logika Percabangan Tampilan
+    if (tab === 'kas' || tab === 'labarugi') {
+        // --- MODE LAPORAN ---
+        const targetPage = document.getElementById(tab + 'Page');
+        if (targetPage) targetPage.classList.remove('hidden');
+
+        if (tab === 'kas') {
+            renderLaporanKas();
+        } else {
+            // Sinkronisasi filter tanggal ke filter lokal Laba Rugi
+            if(document.getElementById('lrDateStart')) {
+                document.getElementById('lrDateStart').value = document.getElementById('dateStart').value;
+                document.getElementById('lrDateEnd').value = document.getElementById('dateEnd').value;
+            }
+            renderLabaRugi();
         }
+    } else {
+        // --- MODE DATA (Transaksi, Piutang, Stok) ---
+        // Tampilkan kembali elemen dashboard utama
+        mainDashboardElements.forEach(el => el?.classList.remove('hidden'));
+        
+        // Render tabel sesuai tab yang dipilih
+        renderTable();
+    }
+
+    // 5. Tandai Tombol yang Aktif
+    const activeBtn = document.getElementById('tab-' + tab);
+    if (activeBtn) {
+        activeBtn.classList.add('tab-active', 'text-blue-600', 'font-bold');
+        activeBtn.classList.remove('text-slate-500');
+    }
+}
 
         async function fetchAllData() {
             const btn = document.getElementById('refreshBtn');
@@ -450,29 +491,7 @@ function renderLabaRugi() {
     `;
 }
 
-function showPage(pageId) {
-    // 1. Sembunyikan semua elemen dengan class page-content
-    document.querySelectorAll('.page-content').forEach(p => p.classList.add('hidden'));
-    
-    // 2. Jika Anda punya div khusus dashboard, sembunyikan juga (opsional tergantung struktur Anda)
-    // document.getElementById('dashboardSection')?.classList.add('hidden'); 
 
-    // 3. Tampilkan halaman yang dipilih
-    const targetPage = document.getElementById(pageId + 'Page');
-    if (targetPage) {
-        targetPage.classList.remove('hidden');
-    }
-
-    // 4. Jalankan fungsi render sesuai halaman
-    if (pageId === 'kas') {
-        renderLaporanKas();
-    } else if (pageId === 'labarugi') {
-        // Sinkronisasi filter tanggal dari dashboard ke filter lokal Laba Rugi
-        document.getElementById('lrDateStart').value = document.getElementById('dateStart').value;
-        document.getElementById('lrDateEnd').value = document.getElementById('dateEnd').value;
-        renderLabaRugi();
-    }
-}
 
 function renderLaporanKas() {
     const kasContent = document.getElementById('kasContent');
