@@ -426,7 +426,6 @@ function renderLabaRugi() {
     
     // Inisialisasi Variabel
     let pendapatanTunai = 0;
-    let totalPiutangBaru = 0
     let sisaPiutangPeriodeIni = 0;
     let beban = 0;
     let pengembalian = 0;
@@ -445,7 +444,7 @@ function renderLabaRugi() {
             const pDate = new Date(p["Waktu"]).getTime();
             if (!isNaN(pDate)) {
                 if (pDate >= startTime && pDate <= endTime) {
-                    sisaPiutangPeriodeIni += parseFloat(p["Sisa Piutang"]) || 0;
+                    sisaPiutangPeriodeIni += parseFloat(p["Total Tagihan"]) || 0;
                 }
             }
         });
@@ -483,19 +482,10 @@ function renderLabaRugi() {
         }
     });
 
-    // 2. HITUNG DARI TABEL PIUTANG (Nilai Tagihan Baru)
-db.piutang.forEach(p => {
-    const dateStr = p["Waktu"]; // Asumsi kolom waktu di tabel piutang
-    const itemTime = new Date(dateStr).getTime();
-
-    if (!isNaN(itemTime) && itemTime >= startTime && itemTime <= endTime) {
-        // Ambil nilai dari kolom "Total Tagihan"
-        totalPiutangBaru += parseFloat(p["Total Tagihan"]) || 0;
-    }
-});
+    
 
     // 4. KALKULASI AKHIR
-    const pendapatanKotorTotal = pendapatanTunai + totalPiutangBaru;
+    const pendapatanKotorTotal = pendapatanTunai + sisaPiutangPeriodeIni;
     const pendapatanBersih = pendapatanKotorTotal - pengembalian;
     const labaBersih = pendapatanBersih - beban;
 
