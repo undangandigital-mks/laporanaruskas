@@ -493,40 +493,66 @@ function renderLabaRugi() {
 
 
 function renderLaporanKas() {
+    const container = document.getElementById('kasPage'); // Target halaman utama kas
     const kasContent = document.getElementById('kasContent');
-    let saldoPerMetode = {
-        "Cash": 0,
-        "Rekening": 0
+    
+    // 1. Inisialisasi Data
+    let data = {
+        saldo: 0,
+        cash: 0,
+        rekening: 0
     };
 
-    db.transaksi.forEach(r => {
-        const metode = r["Metode"] || "Lainnya";
-        const masuk = parseFloat(r["Masuk"]) || 0;
-        const keluar = parseFloat(r["Keluar"]) || 0;
-        
-        if (saldoPerMetode[metode] === undefined) {
-            saldoPerMetode[metode] = 0;
+    // 2. Logika Perhitungan (Menyesuaikan dengan kolom 'Metode' di Excel Anda)
+    db.transaksi.forEach(row => {
+        const masuk = parseFloat(row["Masuk"]) || 0;
+        const keluar = parseFloat(row["Keluar"]) || 0;
+        const metode = (row["Metode"] || "").toLowerCase();
+        const netto = masuk - keluar;
+
+        // Pisahkan saldo berdasarkan metode pembayaran
+        if (metode.includes("rekening") || metode.includes("bank") || metode.includes("tf")) {
+            data.rekening += netto;
+        } else {
+            // Default masuk ke Cash jika tidak ada keterangan bank/rekening
+            data.cash += netto;
         }
         
-        saldoPerMetode[metode] += (masuk - keluar);
+        data.saldo += netto;
     });
 
-    let html = '';
-    for (let tipe in saldoPerMetode) {
-        const isCash = tipe.toLowerCase() === 'cash';
-        html += `
-            <div class="bg-white p-5 rounded-2xl border-l-4 ${isCash ? 'border-green-500' : 'border-blue-500'} card-shadow">
-                <div class="flex items-center gap-3 mb-2">
-                    <div class="w-8 h-8 rounded-full ${isCash ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'} flex items-center justify-center">
-                        <i class="fas ${isCash ? 'fa-money-bill-wave' : 'fa-university'} text-xs"></i>
-                    </div>
-                    <div class="text-[10px] text-slate-500 uppercase font-bold tracking-wider">${tipe}</div>
+    // 3. Update Tampilan (Ganti InnerHTML)
+    container.innerHTML = `
+        <div class="space-y-6 animate-fade p-4">
+            <h2 class="text-xl font-bold text-slate-800 mb-4">Laporan Saldo Kas</h2>
+            
+            <div class="bg-gradient-to-br from-blue-600 to-indigo-700 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden">
+                <div class="relative z-10 text-center">
+                    <p class="text-xs font-bold uppercase opacity-80 tracking-widest mb-2">Total Saldo Kas</p>
+                    <h2 class="text-4xl font-black">${formatIDR(data.saldo)}</h2>
                 </div>
-                <div class="text-xl font-black text-slate-800">${formatIDR(saldoPerMetode[tipe])}</div>
+                <div class="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
+                <div class="absolute -left-10 -bottom-10 w-40 h-40 bg-blue-400/20 rounded-full blur-3xl"></div>
             </div>
-        `;
-    }
-    kasContent.innerHTML = html;
+
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col items-center text-center">
+                    <div class="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3">
+                        <i class="fas fa-money-bill-wave"></i>
+                    </div>
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Saldo Tunai</p>
+                    <p class="text-sm font-black text-slate-800">${formatIDR(data.cash)}</p>
+                </div>
+                <div class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col items-center text-center">
+                    <div class="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-3">
+                        <i class="fas fa-university"></i>
+                    </div>
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Rekening</p>
+                    <p class="text-sm font-black text-slate-800">${formatIDR(data.rekening)}</p>
+                </div>
+            </div>
+        </div>
+    `;
 }
 
 function renderLabaRugi() {
