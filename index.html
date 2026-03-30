@@ -491,7 +491,8 @@ function renderLabaRugi() {
 }
 
 function renderLaporanKas() {
-    const container = document.getElementById('kasContent');
+    const container = document.getElementById('kasContent'); // Pastikan baris ini ada
+    
     let data = { 
         penjualanLangsung: 0, 
         cicilanPiutang: 0,
@@ -511,7 +512,6 @@ function renderLaporanKas() {
         const metode = (row["Metode"] || "cash").toLowerCase();
         const netto = masuk - keluar;
 
-        // Logika Pendapatan
         if (masuk > 0 && !kategori.includes("saldo awal") && !kategori.includes("transfer")) {
             if (kategori.includes("cicilan") || kategori.includes("piutang")) {
                 data.cicilanPiutang += masuk;
@@ -520,7 +520,6 @@ function renderLaporanKas() {
             }
         }
         
-        // Logika Pengeluaran
         if (keluar > 0) {
             if (kategori.includes("beli") || kategori.includes("stok")) {
                 data.pembelian += keluar;
@@ -529,7 +528,6 @@ function renderLaporanKas() {
             }
         }
 
-        // Pembagian Saldo Per Akun (Cash vs Rekening)
         if (metode.includes("rekening") || metode.includes("bank") || metode.includes("tf")) {
             data.rekening += netto;
         } else {
@@ -538,58 +536,56 @@ function renderLaporanKas() {
         data.saldo += netto;
     });
 
-    // 2. Hitung Total Piutang yang belum tertagih
+    // 2. Hitung Total Piutang
     db.piutang.forEach(row => {
         data.sisaPiutang += parseFloat(row["Sisa Piutang"] || row["Sisa"] || 0);
     });
 
-    const totalPendapatanUangMasuk = data.penjualanLangsung + data.cicilanPiutang;
-    const totalPengeluaran = data.pembelian + data.operasional;
+    const totalPenjualan = data.penjualanLangsung + data.cicilanPiutang;
+    const totalPendapatan = totalPenjualan - data.sisaPiutang;
+    const totalSemuaPengeluaran = data.pembelian + data.operasional;
 
     container.innerHTML = `
-        <div class="space-y-6 animate-fade">
-            <div class="bg-gradient-to-br from-blue-600 to-indigo-700 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden">
-                <div class="relative z-10 text-center">
-                    <p class="text-xs font-bold uppercase opacity-80 tracking-widest mb-2">Total Saldo Kas (Real)</p>
-                    <h2 class="text-4xl font-black">${formatIDR(data.saldo)}</h2>
-                </div>
+        <div class="space-y-6 animate-fade col-span-full">
+            <div class="bg-gradient-to-br from-blue-600 to-indigo-700 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden text-center">
+                <p class="text-xs font-bold uppercase opacity-80 tracking-widest mb-2">Total Saldo Kas (Real)</p>
+                <h2 class="text-4xl font-black">${formatIDR(data.saldo)}</h2>
                 <div class="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
             </div>
 
-            <div class="grid grid-cols-2 gap-3">
-                <div class="bg-white p-5 rounded-3xl border border-slate-100 card-shadow flex flex-col items-center">
-                    <div class="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3">
-                        <i class="fas fa-money-bill-wave"></i>
-                    </div>
-                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Saldo Tunai</p>
-                    <p class="text-sm font-black text-slate-800">${formatIDR(data.cash)}</p>
-                </div>
-                <div class="bg-white p-5 rounded-3xl border border-slate-100 card-shadow flex flex-col items-center">
-                    <div class="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-3">
-                        <i class="fas fa-university"></i>
-                    </div>
-                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Rekening</p>
-                    <p class="text-sm font-black text-slate-800">${formatIDR(data.rekening)}</p>
-                </div>
-            </div>
-
             <div class="bg-white rounded-3xl border border-slate-100 card-shadow overflow-hidden">
-                <div class="p-5 bg-slate-50/50 border-b border-slate-100">
-                    <h3 class="text-xs font-black text-slate-800 uppercase tracking-widest">Detail Laporan</h3>
-                </div>
                 <table class="w-full text-left">
                     <tbody class="divide-y divide-slate-50">
-                        <tr>
-                            <td class="p-4 text-sm text-slate-600">Total Uang Masuk (Net)</td>
-                            <td class="p-4 text-right text-sm font-bold text-green-600">${formatIDR(totalPendapatanUangMasuk)}</td>
+                        <tr class="bg-slate-50/50">
+                            <td colspan="2" class="p-4 text-[10px] font-black text-blue-600 uppercase tracking-widest">Pendapatan</td>
                         </tr>
                         <tr>
-                            <td class="p-4 text-sm text-slate-600">Piutang (Belum Cair)</td>
-                            <td class="p-4 text-right text-sm font-bold text-orange-500">${formatIDR(data.sisaPiutang)}</td>
+                            <td class="p-4 text-sm text-slate-600">Total Penjualan</td>
+                            <td class="p-4 text-right text-sm font-bold text-slate-800">${formatIDR(totalPenjualan)}</td>
                         </tr>
                         <tr>
-                            <td class="p-4 text-sm text-slate-600">Total Pengeluaran</td>
-                            <td class="p-4 text-right text-sm font-bold text-red-600">${formatIDR(totalPengeluaran)}</td>
+                            <td class="p-4 text-sm text-slate-600">Sisa Piutang</td>
+                            <td class="p-4 text-right text-sm font-bold text-red-500">-${formatIDR(data.sisaPiutang)}</td>
+                        </tr>
+                        <tr class="bg-blue-50/30">
+                            <td class="p-4 text-sm font-bold text-slate-700">Total Pendapatan</td>
+                            <td class="p-4 text-right text-sm font-black text-blue-700">${formatIDR(totalPendapatan)}</td>
+                        </tr>
+
+                        <tr class="bg-slate-50/50">
+                            <td colspan="2" class="p-4 text-[10px] font-black text-red-600 uppercase tracking-widest">Pengeluaran</td>
+                        </tr>
+                        <tr>
+                            <td class="p-4 text-sm text-slate-600">Total Pembelian</td>
+                            <td class="p-4 text-right text-sm font-bold text-slate-800">${formatIDR(data.pembelian)}</td>
+                        </tr>
+                        <tr>
+                            <td class="p-4 text-sm text-slate-600">Total Operasional</td>
+                            <td class="p-4 text-right text-sm font-bold text-slate-800">${formatIDR(data.operasional)}</td>
+                        </tr>
+                        <tr class="bg-red-50/30">
+                            <td class="p-4 text-sm font-bold text-slate-700">Total Pengeluaran</td>
+                            <td class="p-4 text-right text-sm font-black text-red-700">${formatIDR(totalSemuaPengeluaran)}</td>
                         </tr>
                     </tbody>
                 </table>
