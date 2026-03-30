@@ -491,9 +491,10 @@ function renderLabaRugi() {
 }
 
 function renderLaporanKas() {
-    const container = document.getElementById('kasContent'); // Pastikan baris ini ada
+    const container = document.getElementById('kasContent'); 
     
     let data = { 
+        saldoAwal: 0,
         penjualanLangsung: 0, 
         cicilanPiutang: 0,
         sisaPiutang: 0, 
@@ -511,6 +512,11 @@ function renderLaporanKas() {
         const kategori = (row["Kategori"] || "").toLowerCase();
         const metode = (row["Metode"] || "cash").toLowerCase();
         const netto = masuk - keluar;
+
+        // Hitung Saldo Awal Khusus
+        if (kategori.includes("saldo awal")) {
+            data.saldoAwal += masuk;
+        }
 
         if (masuk > 0 && !kategori.includes("saldo awal") && !kategori.includes("transfer")) {
             if (kategori.includes("cicilan") || kategori.includes("piutang")) {
@@ -542,7 +548,8 @@ function renderLaporanKas() {
     });
 
     const totalPenjualan = data.penjualanLangsung + data.cicilanPiutang;
-    const totalPendapatan = totalPenjualan - data.sisaPiutang;
+    // Total Pendapatan sekarang termasuk Saldo Awal sebagai penambah
+    const totalPendapatan = (data.saldoAwal + totalPenjualan) - data.sisaPiutang;
     const totalSemuaPengeluaran = data.pembelian + data.operasional;
 
     container.innerHTML = `
@@ -558,6 +565,10 @@ function renderLaporanKas() {
                     <tbody class="divide-y divide-slate-50">
                         <tr class="bg-slate-50/50">
                             <td colspan="2" class="p-4 text-[10px] font-black text-blue-600 uppercase tracking-widest">Pendapatan</td>
+                        </tr>
+                        <tr>
+                            <td class="p-4 text-sm text-slate-600">Saldo Awal</td>
+                            <td class="p-4 text-right text-sm font-bold text-slate-800">${formatIDR(data.saldoAwal)}</td>
                         </tr>
                         <tr>
                             <td class="p-4 text-sm text-slate-600">Total Penjualan</td>
@@ -593,7 +604,6 @@ function renderLaporanKas() {
         </div>
     `;
 }
-        
 
         
 // Fungsi Reset jika ingin kembali ke pengaturan awal
