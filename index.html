@@ -472,7 +472,7 @@ function renderLabaRugi() {
             else {
                 // PENTING: Abaikan "Pelunasan Piutang" agar tidak double counting 
                 // karena piutang sudah dihitung saat transaksi awal terjadi.
-                if (!cat.includes("pelunasan piutang")) {
+                if (!cat.includes("Cicilan Piutang")) {
                     pendapatanTunai += parseFloat(r["Masuk"]) || 0;
                 }
                 
