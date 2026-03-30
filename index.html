@@ -422,39 +422,109 @@
 }
         
 function renderLabaRugi() {
-    // ... (kode filter tanggal tetap sama) ...
-
+    const container = document.getElementById('labarugiContent');
+    
+    // Inisialisasi Variabel
     let pendapatanTunai = 0;
-    let sisaPiutangPeriodeIni = 0; // Tambahan untuk menampung piutang
+    let sisaPiutangPeriodeIni = 0;
     let beban = 0;
     let pengembalian = 0;
 
-    // 1. Hitung Piutang (Jika Anda ingin memasukkannya ke Pendapatan Kotor)
-    db.piutang.forEach(p => {
-        // Logika filter tanggal juga harus diterapkan di sini jika ingin konsisten per periode
-        sisaPiutangPeriodeIni += parseFloat(p["Sisa Piutang"] || 0);
-    });
+    // 1. Ambil Filter Tanggal
+    const startInput = document.getElementById('lrDateStart').value;
+    const endInput = document.getElementById('lrDateEnd').value;
+    
+    const startTime = startInput ? new Date(startInput).getTime() : -Infinity;
+    const endTime = endInput ? new Date(endInput).setHours(23, 59, 59, 999) : Infinity;
 
+    // 2. HITUNG PIUTANG (Hanya yang terjadi di periode ini)
+    // Asumsi: db.piutang memiliki properti "Tanggal" dan "Sisa Piutang"
+    if (db.piutang) {
+        db.piutang.forEach(p => {
+            const pDate = new Date(p["Tanggal"]).getTime();
+            if (!isNaN(pDate)) {
+                if (pDate >= startTime && pDate <= endTime) {
+                    sisaPiutangPeriodeIni += parseFloat(p["Sisa Piutang"]) || 0;
+                }
+            }
+        });
+    }
+
+    // 3. HITUNG TRANSAKSI (Cash Flow)
     db.transaksi.forEach(r => {
-        // ... (logika filter tanggal pass) ...
-        if (pass) {
+        const dateStr = r["Waktu"];
+        const itemTime = new Date(dateStr).getTime();
+        
+        // Filter Tanggal
+        if (!isNaN(itemTime) && itemTime >= startTime && itemTime <= endTime) {
             const cat = (r["Kategori"] || "").toLowerCase().trim();
+
+            // A. Abaikan Transfer & Saldo Awal
+            if (["transfer saldo", "saldo awal"].some(ex => cat.includes(ex))) {
+                return; 
+            }
+
+            // B. Logika Pengembalian Dana
             if (cat.includes("pengembalian dana")) {
                 pengembalian += parseFloat(r["Keluar"]) || 0;
-            } else if (!["transfer saldo", "saldo awal"].some(ex => cat.includes(ex))) {
-                // Ini adalah uang yang sudah masuk (Cash)
-                pendapatanTunai += parseFloat(r["Masuk"]) || 0;
+            } 
+            // C. Logika Pendapatan & Beban
+            else {
+                // PENTING: Abaikan "Pelunasan Piutang" agar tidak double counting 
+                // karena piutang sudah dihitung saat transaksi awal terjadi.
+                if (!cat.includes("pelunasan piutang")) {
+                    pendapatanTunai += parseFloat(r["Masuk"]) || 0;
+                }
+                
+                // Hitung semua pengeluaran sebagai beban operasional
                 beban += parseFloat(r["Keluar"]) || 0;
             }
         }
     });
 
-    // RUMUS BARU: Pendapatan Kotor = Uang Masuk + Piutang yang belum bayar
+    // 4. KALKULASI AKHIR
     const pendapatanKotorTotal = pendapatanTunai + sisaPiutangPeriodeIni;
     const pendapatanBersih = pendapatanKotorTotal - pengembalian;
     const labaBersih = pendapatanBersih - beban;
 
-    // ... (render ke innerHTML) ...
+    // 5. RENDER TAMPILAN
+    container.innerHTML = `
+        <div class="mb-4 text-[10px] font-bold text-blue-600 uppercase tracking-widest">
+            Analisis Periode: ${startInput || 'Semua'} - ${endInput || 'Sekarang'}
+        </div>
+        <div class="space-y-4">
+            <div class="flex justify-between border-b border-slate-100 pb-2">
+                <span class="text-sm text-slate-600">Penjualan Tunai</span>
+                <span class="text-sm font-medium text-slate-900">${formatIDR(pendapatanTunai)}</span>
+            </div>
+            <div class="flex justify-between border-b border-slate-100 pb-2">
+                <span class="text-sm text-slate-600">Piutang Baru (Belum Lunas)</span>
+                <span class="text-sm font-medium text-orange-600">+${formatIDR(sisaPiutangPeriodeIni)}</span>
+            </div>
+            <div class="flex justify-between border-b border-slate-100 pb-3 font-bold">
+                <span class="text-sm text-slate-700">Total Pendapatan Kotor</span>
+                <span class="text-sm text-green-600">${formatIDR(pendapatanKotorTotal)}</span>
+            </div>
+            <div class="flex justify-between border-b border-slate-100 pb-3">
+                <span class="text-sm text-slate-600">Pengembalian Dana (Retur)</span>
+                <span class="text-sm font-bold text-red-500">-${formatIDR(pengembalian)}</span>
+            </div>
+            <div class="flex justify-between items-center bg-slate-50 p-3 rounded-lg font-bold">
+                <span class="text-sm text-slate-700">Total Pendapatan Bersih</span>
+                <span class="text-sm text-slate-900">${formatIDR(pendapatanBersih)}</span>
+            </div>
+            <div class="flex justify-between border-b border-slate-100 pb-3 pt-2">
+                <span class="text-sm text-slate-600">Total Beban Operasional</span>
+                <span class="text-sm font-bold text-red-600">-${formatIDR(beban)}</span>
+            </div>
+            <div class="mt-6 p-4 rounded-xl ${labaBersih >= 0 ? 'bg-blue-50' : 'bg-red-50'}">
+                <div class="flex justify-between items-center">
+                    <span class="font-bold ${labaBersih >= 0 ? 'text-blue-800' : 'text-red-800'}">LABA / RUGI BERSIH</span>
+                    <span class="text-xl font-black ${labaBersih >= 0 ? 'text-blue-700' : 'text-red-700'}">${formatIDR(labaBersih)}</span>
+                </div>
+            </div>
+        </div>
+    `;
 }
         
 function renderLaporanKas() {
