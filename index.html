@@ -518,7 +518,9 @@ function renderLaporanKas() {
             data.saldoAwal += masuk;
         }
 
-        if (masuk > 0 && !kategori.includes("saldo awal") && !kategori.includes("transfer")) {
+        // LOGIKA PENDAPATAN
+        // Tambahan filter: !kategori.includes("cancel order")
+        if (masuk > 0 && !kategori.includes("saldo awal") && !kategori.includes("transfer") && !kategori.includes("cancel order")) {
             if (kategori.includes("cicilan") || kategori.includes("piutang")) {
                 data.cicilanPiutang += masuk;
             } else {
@@ -526,14 +528,18 @@ function renderLaporanKas() {
             }
         }
         
+        // LOGIKA PENGELUARAN
         if (keluar > 0) {
             if (kategori.includes("beli") || kategori.includes("stok")) {
                 data.pembelian += keluar;
-            } else if (!kategori.includes("transfer")) {
+            } 
+            // Tambahan filter: !kategori.includes("pengembalian dana")
+            else if (!kategori.includes("transfer") && !kategori.includes("pengembalian dana")) {
                 data.operasional += keluar;
             }
         }
 
+        // Pembagian Saldo Akun (Tetap menghitung netto asli agar Saldo Real akurat)
         if (metode.includes("rekening") || metode.includes("bank") || metode.includes("tf")) {
             data.rekening += netto;
         } else {
@@ -548,7 +554,6 @@ function renderLaporanKas() {
     });
 
     const totalPenjualan = data.penjualanLangsung + data.cicilanPiutang;
-    // Total Pendapatan sekarang termasuk Saldo Awal sebagai penambah
     const totalPendapatan = (data.saldoAwal + totalPenjualan) - data.sisaPiutang;
     const totalSemuaPengeluaran = data.pembelian + data.operasional;
 
@@ -571,7 +576,7 @@ function renderLaporanKas() {
                             <td class="p-4 text-right text-sm font-bold text-slate-800">${formatIDR(data.saldoAwal)}</td>
                         </tr>
                         <tr>
-                            <td class="p-4 text-sm text-slate-600">Total Penjualan</td>
+                            <td class="p-4 text-sm text-slate-600">Total Penjualan <span class="text-[9px] text-slate-400 font-normal">(Excl. Cancel)</span></td>
                             <td class="p-4 text-right text-sm font-bold text-slate-800">${formatIDR(totalPenjualan)}</td>
                         </tr>
                         <tr>
@@ -591,7 +596,7 @@ function renderLaporanKas() {
                             <td class="p-4 text-right text-sm font-bold text-slate-800">${formatIDR(data.pembelian)}</td>
                         </tr>
                         <tr>
-                            <td class="p-4 text-sm text-slate-600">Total Operasional</td>
+                            <td class="p-4 text-sm text-slate-600">Total Operasional <span class="text-[9px] text-slate-400 font-normal">(Excl. Refund)</span></td>
                             <td class="p-4 text-right text-sm font-bold text-slate-800">${formatIDR(data.operasional)}</td>
                         </tr>
                         <tr class="bg-red-50/30">
@@ -604,7 +609,6 @@ function renderLaporanKas() {
         </div>
     `;
 }
-
         
 // Fungsi Reset jika ingin kembali ke pengaturan awal
 function resetLRFilter() {
