@@ -444,7 +444,7 @@ function renderLabaRugi() {
             const pDate = new Date(p["Waktu"]).getTime();
             if (!isNaN(pDate)) {
                 if (pDate >= startTime && pDate <= endTime) {
-                    sisaPiutangPeriodeIni += parseFloat(p["Total Tagihan"]) || 0;
+                    sisaPiutangPeriodeIni += parseFloat(p["Sisa Piutang"]) || 0;
                 }
             }
         });
