@@ -490,114 +490,113 @@ function renderLabaRugi() {
     `;
 }
 
-
-
 function renderLaporanKas() {
-    const container = document.getElementById('kasPage'); // Target halaman utama kas
-    const kasContent = document.getElementById('kasContent');
-    
-    // 1. Inisialisasi Data
-    let data = {
+    let data = { 
+        penjualanLangsung: 0, 
+        cicilanPiutang: 0,
+        sisaPiutang: 0, 
+        pembelian: 0, 
+        operasional: 0, 
         saldo: 0,
         cash: 0,
         rekening: 0
     };
 
-    // 2. Logika Perhitungan (Menyesuaikan dengan kolom 'Metode' di Excel Anda)
+    // 1. Hitung Saldo & Kategori dari Transaksi
     db.transaksi.forEach(row => {
         const masuk = parseFloat(row["Masuk"]) || 0;
         const keluar = parseFloat(row["Keluar"]) || 0;
-        const metode = (row["Metode"] || "").toLowerCase();
+        const kategori = (row["Kategori"] || "").toLowerCase();
+        const metode = (row["Metode"] || "cash").toLowerCase();
         const netto = masuk - keluar;
 
-        // Pisahkan saldo berdasarkan metode pembayaran
+        // Logika Pendapatan
+        if (masuk > 0 && !kategori.includes("saldo awal") && !kategori.includes("transfer")) {
+            if (kategori.includes("cicilan") || kategori.includes("piutang")) {
+                data.cicilanPiutang += masuk;
+            } else {
+                data.penjualanLangsung += masuk;
+            }
+        }
+        
+        // Logika Pengeluaran
+        if (keluar > 0) {
+            if (kategori.includes("beli") || kategori.includes("stok")) {
+                data.pembelian += keluar;
+            } else if (!kategori.includes("transfer")) {
+                data.operasional += keluar;
+            }
+        }
+
+        // Pembagian Saldo Per Akun (Cash vs Rekening)
         if (metode.includes("rekening") || metode.includes("bank") || metode.includes("tf")) {
             data.rekening += netto;
         } else {
-            // Default masuk ke Cash jika tidak ada keterangan bank/rekening
             data.cash += netto;
         }
-        
         data.saldo += netto;
     });
 
-    // 3. Update Tampilan (Ganti InnerHTML)
+    // 2. Hitung Total Piutang yang belum tertagih
+    db.piutang.forEach(row => {
+        data.sisaPiutang += parseFloat(row["Sisa Piutang"] || row["Sisa"] || 0);
+    });
+
+    const totalPendapatanUangMasuk = data.penjualanLangsung + data.cicilanPiutang;
+    const totalPengeluaran = data.pembelian + data.operasional;
+
     container.innerHTML = `
-        <div class="space-y-6 animate-fade p-4">
-            <h2 class="text-xl font-bold text-slate-800 mb-4">Laporan Saldo Kas</h2>
-            
+        <div class="space-y-6 animate-fade">
             <div class="bg-gradient-to-br from-blue-600 to-indigo-700 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden">
                 <div class="relative z-10 text-center">
-                    <p class="text-xs font-bold uppercase opacity-80 tracking-widest mb-2">Total Saldo Kas</p>
+                    <p class="text-xs font-bold uppercase opacity-80 tracking-widest mb-2">Total Saldo Kas (Real)</p>
                     <h2 class="text-4xl font-black">${formatIDR(data.saldo)}</h2>
                 </div>
                 <div class="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
-                <div class="absolute -left-10 -bottom-10 w-40 h-40 bg-blue-400/20 rounded-full blur-3xl"></div>
             </div>
 
             <div class="grid grid-cols-2 gap-3">
-                <div class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col items-center text-center">
+                <div class="bg-white p-5 rounded-3xl border border-slate-100 card-shadow flex flex-col items-center">
                     <div class="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3">
                         <i class="fas fa-money-bill-wave"></i>
                     </div>
-                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Saldo Tunai</p>
+                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Saldo Tunai</p>
                     <p class="text-sm font-black text-slate-800">${formatIDR(data.cash)}</p>
                 </div>
-                <div class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col items-center text-center">
+                <div class="bg-white p-5 rounded-3xl border border-slate-100 card-shadow flex flex-col items-center">
                     <div class="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-3">
                         <i class="fas fa-university"></i>
                     </div>
-                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Rekening</p>
+                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Rekening</p>
                     <p class="text-sm font-black text-slate-800">${formatIDR(data.rekening)}</p>
                 </div>
             </div>
-        </div>
-    `;
-}
 
-function renderLabaRugi() {
-    const container = document.getElementById('labarugiContent');
-    let pendapatan = 0;
-    let beban = 0;
-    let pengembalian = 0;
-
-    db.transaksi.forEach(r => {
-        const cat = (r["Kategori"] || "").toLowerCase();
-        if (cat.includes("pengembalian dana")) {
-            pengembalian += parseFloat(r["Keluar"]) || 0;
-        } else if (!["transfer saldo", "saldo awal"].some(ex => cat.includes(ex))) {
-            pendapatan += parseFloat(r["Masuk"]) || 0;
-            beban += parseFloat(r["Keluar"]) || 0;
-        }
-    });
-
-    const labaBersih = (pendapatan - pengembalian) - beban;
-
-    container.innerHTML = `
-        <div class="space-y-4">
-            <div class="flex justify-between border-b pb-2">
-                <span>Pendapatan Penjualan</span>
-                <span class="text-green-600 font-bold">${formatIDR(pendapatan)}</span>
-            </div>
-            <div class="flex justify-between border-b pb-2">
-                <span>Pengembalian Dana (Refund)</span>
-                <span class="text-red-600">(${formatIDR(pengembalian)})</span>
-            </div>
-            <div class="flex justify-between font-bold text-lg pt-2">
-                <span>Pendapatan Bersih</span>
-                <span>${formatIDR(pendapatan - pengembalian)}</span>
-            </div>
-            <div class="flex justify-between border-b pb-2 text-red-500">
-                <span>Total Beban Operasional</span>
-                <span>-${formatIDR(beban)}</span>
-            </div>
-            <div class="flex justify-between font-black text-xl pt-4 ${labaBersih >= 0 ? 'text-blue-700' : 'text-red-700'}">
-                <span>LABA/RUGI BERSIH</span>
-                <span>${formatIDR(labaBersih)}</span>
+            <div class="bg-white rounded-3xl border border-slate-100 card-shadow overflow-hidden">
+                <div class="p-5 bg-slate-50/50 border-b border-slate-100">
+                    <h3 class="text-xs font-black text-slate-800 uppercase tracking-widest">Detail Laporan</h3>
+                </div>
+                <table class="w-full text-left">
+                    <tbody class="divide-y divide-slate-50">
+                        <tr>
+                            <td class="p-4 text-sm text-slate-600">Total Uang Masuk (Net)</td>
+                            <td class="p-4 text-right text-sm font-bold text-green-600">${formatIDR(totalPendapatanUangMasuk)}</td>
+                        </tr>
+                        <tr>
+                            <td class="p-4 text-sm text-slate-600">Piutang (Belum Cair)</td>
+                            <td class="p-4 text-right text-sm font-bold text-orange-500">${formatIDR(data.sisaPiutang)}</td>
+                        </tr>
+                        <tr>
+                            <td class="p-4 text-sm text-slate-600">Total Pengeluaran</td>
+                            <td class="p-4 text-right text-sm font-bold text-red-600">${formatIDR(totalPengeluaran)}</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     `;
 }
+        
 
         
 // Fungsi Reset jika ingin kembali ke pengaturan awal
