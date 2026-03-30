@@ -441,7 +441,7 @@ function renderLabaRugi() {
     // Asumsi: db.piutang memiliki properti "Tanggal" dan "Sisa Piutang"
     if (db.piutang) {
         db.piutang.forEach(p => {
-            const pDate = new Date(p["Tanggal"]).getTime();
+            const pDate = new Date(p["Waktu"]).getTime();
             if (!isNaN(pDate)) {
                 if (pDate >= startTime && pDate <= endTime) {
                     sisaPiutangPeriodeIni += parseFloat(p["Sisa Piutang"]) || 0;
