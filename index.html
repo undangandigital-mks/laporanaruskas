@@ -438,13 +438,15 @@ function renderLabaRugi() {
     const endTime = endInput ? new Date(endInput).setHours(23, 59, 59, 999) : Infinity;
 
     // 2. HITUNG PIUTANG (Hanya yang terjadi di periode ini)
-    // Asumsi: db.piutang memiliki properti "Tanggal" dan "Sisa Piutang"
     if (db.piutang) {
         db.piutang.forEach(p => {
             const pDate = new Date(p["Waktu"]).getTime();
             if (!isNaN(pDate)) {
                 if (pDate >= startTime && pDate <= endTime) {
-                    sisaPiutangPeriodeIni += parseFloat(p["Sisa Piutang"]) || 0;
+                    // Logika Baru: Total Tagihan dikurangi DP
+                    const totalTagihan = parseFloat(p["Total Tagihan"]) || 0;
+                    const dp = parseFloat(p["DP"]) || 0;
+                    sisaPiutangPeriodeIni += (totalTagihan - dp);
                 }
             }
         });
@@ -500,7 +502,7 @@ function renderLabaRugi() {
                 <span class="text-sm font-medium text-slate-900">${formatIDR(pendapatanTunai)}</span>
             </div>
             <div class="flex justify-between border-b border-slate-100 pb-2">
-                <span class="text-sm text-slate-600">Piutang Baru (Belum Lunas)</span>
+                <span class="text-sm text-slate-600">Piutang</span>
                 <span class="text-sm font-medium text-orange-600">+${formatIDR(sisaPiutangPeriodeIni)}</span>
             </div>
             <div class="flex justify-between border-b border-slate-100 pb-3 font-bold">
