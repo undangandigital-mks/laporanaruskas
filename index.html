@@ -345,8 +345,17 @@
         }
 
 
+// 1. Definisikan URL Apps Script di tingkat global (di awal script)
+window.SCRIPT_URL = "https://script.google.com/macros/s/AKfycbydSePs_pWAULQIaPZ8z0wEpaBaPnF2G4rTSGGeyfii3vao5ZC8V6LTT3wuGWKDPAk/exec";
+
 async function processShopeeExcel(file) {
     if (!file) return;
+    
+    // Notifikasi loading sederhana
+    const btn = document.querySelector("button[onclick*='shopeeInput']");
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Memproses...';
+    btn.disabled = true;
 
     const reader = new FileReader();
     reader.onload = async (e) => {
@@ -354,66 +363,73 @@ async function processShopeeExcel(file) {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
             
-            // 1. Identifikasi Sheet (Shopee biasanya menamai "Income" atau "Penghasilan")
-            const sheetName = "Income"; 
+            // Mencari sheet "Income" (Shopee biasanya menamakan sheet pertamanya 'Income')
+            const sheetName = "Income";
             const worksheet = workbook.Sheets[sheetName];
             
             if (!worksheet) {
-                alert("Sheet 'Income' tidak ditemukan dalam file ini.");
+                alert("Gagal: Sheet bernama 'Income' tidak ditemukan dalam file ini.");
+                btn.innerHTML = originalText;
+                btn.disabled = false;
                 return;
             }
 
-            // 2. Parsing Data (Mulai dari baris ke-7 karena baris 1-6 biasanya header laporan)
-            const jsonData = XLSX.utils.sheet_to_json(worksheet, { range: 6 });
+            // Shopee memiliki header di baris ke-6 (index 5)
+            const rawData = XLSX.utils.sheet_to_json(worksheet, { range: 5 });
             const shopeeDataToSave = [];
 
-            jsonData.forEach(row => {
-                if (!row['No. Pesanan']) return;
+            rawData.forEach(row => {
+                // Pastikan baris memiliki nomor pesanan
+                if (row['No. Pesanan']) {
+                    const bruto = parseFloat(row['Harga Asli Produk']) || 0;
+                    const netIncome = parseFloat(row['Total Penghasilan']) || 0;
+                    
+                    // Hitung total semua potongan (Admin, Layanan, Transaksi, Kampanye)
+                    const admin = parseFloat(row['Biaya Administrasi']) || 0;
+                    const layanan = parseFloat(row['Biaya Layanan']) || 0;
+                    const transaksi = parseFloat(row['Biaya Transaksi']) || 0;
+                    const kampanye = parseFloat(row['Biaya Kampanye']) || 0;
+                    const proses = parseFloat(row['Biaya Proses Pesanan']) || 0;
+                    
+                    const totalPotongan = Math.abs(admin + layanan + transaksi + kampanye + proses);
 
-                // Hitung biaya-biaya secara total
-                const bruto = parseFloat(row['Harga Asli Produk']) || 0;
-                const biayaAdmin = parseFloat(row['Biaya Administrasi']) || 0;
-                const biayaLayanan = parseFloat(row['Biaya Layanan']) || 0;
-                const biayaTransaksi = parseFloat(row['Biaya Transaksi']) || 0;
-                const totalPotongan = Math.abs(biayaAdmin + biayaLayanan + biayaTransaksi);
-                const netIncome = parseFloat(row['Total Penghasilan']) || 0;
-
-                // Susun objek data sesuai kebutuhan sheet baru Anda
-                shopeeDataToSave.push({
-                    tgl_cair: row['Tanggal Dana Dilepaskan'] || '-',
-                    no_pesanan: row['No. Pesanan'],
-                    sku: row['Username (Pembeli)'] || '-', // Sebagai referensi identitas
-                    omzet_bruto: bruto,
-                    total_potongan: totalPotongan,
-                    net_income: netIncome
-                });
+                    shopeeDataToSave.push({
+                        tgl_cair: row['Tanggal Dana Dilepaskan'] || '',
+                        no_pesanan: row['No. Pesanan'],
+                        pembeli: row['Username (Pembeli)'] || '',
+                        omzet_bruto: bruto,
+                        total_potongan: totalPotongan,
+                        net_income: netIncome
+                    });
+                }
             });
 
             if (shopeeDataToSave.length === 0) {
-                alert("Tidak ada data transaksi yang valid ditemukan.");
-                return;
+                alert("Data kosong atau format header salah. Pastikan menggunakan file asli Shopee.");
+            } else {
+                // Kirim data ke Google Apps Script
+                await fetch(window.SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'insertShopeeData',
+                        data: shopeeDataToSave
+                    })
+                });
+
+                alert(`Berhasil mengimpor ${shopeeDataToSave.length} data transaksi Shopee!`);
+                
+                // Refresh data dashboard jika fungsi tersedia
+                if (typeof fetchAllData === "function") fetchAllData();
             }
 
-            // 3. Kirim ke Google Apps Script
-            // Ganti SCRIPT_URL dengan URL Web App Anda
-            const response = await fetch(window.SCRIPT_URL, {
-                method: 'POST',
-                mode: 'no-cors', // Penting untuk Apps Script
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'insertShopeeData',
-                    data: shopeeDataToSave
-                })
-            });
-
-            alert(`Berhasil memproses ${shopeeDataToSave.length} transaksi Shopee ke sheet shopee_income!`);
-            
-            // Refresh data jika ada fungsi fetch global
-            if (typeof fetchAllData === "function") fetchAllData();
-
         } catch (error) {
-            console.error("Error processing Excel:", error);
-            alert("Terjadi kesalahan saat membaca file Excel.");
+            console.error("Error Detail:", error);
+            alert("Terjadi kesalahan teknis saat membaca file.");
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
         }
     };
     reader.readAsArrayBuffer(file);
