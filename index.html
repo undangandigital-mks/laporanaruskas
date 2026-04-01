@@ -6,6 +6,7 @@
     <title>ViP Enterprise Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -60,17 +61,31 @@
     <div class="max-w-7xl mx-auto">
         <!-- Header -->
         <header class="mb-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-                <h1 class="text-xl md:text-2xl font-bold text-slate-800 flex items-center gap-2">
-                    <i class="fas fa-chart-line text-blue-600"></i>
-                    ViP Enterprise
-                </h1>
-                <p class="text-slate-500 text-[10px] md:text-sm font-medium uppercase tracking-wider">Dashboard Monitoring Bisnis</p>
-            </div>
-            <button onclick="fetchAllData()" id="refreshBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-md active:scale-95 text-sm">
-                <i class="fas fa-sync-alt"></i> Sinkronisasi
-            </button>
-        </header>
+    <div>
+        <h1 class="text-xl md:text-2xl font-bold text-slate-800 flex items-center gap-2">
+            <i class="fas fa-chart-line text-blue-600"></i>
+            ViP Enterprise
+        </h1>
+        <p class="text-slate-500 text-[10px] md:text-sm font-medium uppercase tracking-wider">Dashboard Monitoring Bisnis</p>
+    </div>
+
+    <div class="flex items-center gap-2 md:gap-3">
+        <input type="file" id="shopeeInput" class="hidden" accept=".xlsx" onchange="processShopeeExcel(this.files[0])">
+        <button onclick="document.getElementById('shopeeInput').click()" 
+                class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all flex items-center gap-2 shadow-md active:scale-95">
+            <i class="fas fa-shopping-bag"></i> 
+            <span class="hidden md:inline">Import Shopee</span>
+            <span class="md:hidden">Shopee</span>
+        </button>
+
+        <button onclick="fetchAllData()" id="refreshBtn" 
+                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 shadow-md active:scale-95 text-xs md:text-sm text-nowrap">
+            <i class="fas fa-sync-alt"></i> Sinkronisasi
+        </button>
+    </div>
+</header>
+
+        
 
         <!-- Tab Navigation -->
         <div class="flex border-b border-slate-200 mb-5 bg-white rounded-t-xl px-2 overflow-x-auto no-scrollbar">
@@ -330,6 +345,81 @@
         }
 
 
+async function processShopeeExcel(file) {
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            
+            // 1. Identifikasi Sheet (Shopee biasanya menamai "Income" atau "Penghasilan")
+            const sheetName = "Income"; 
+            const worksheet = workbook.Sheets[sheetName];
+            
+            if (!worksheet) {
+                alert("Sheet 'Income' tidak ditemukan dalam file ini.");
+                return;
+            }
+
+            // 2. Parsing Data (Mulai dari baris ke-7 karena baris 1-6 biasanya header laporan)
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { range: 6 });
+            const shopeeDataToSave = [];
+
+            jsonData.forEach(row => {
+                if (!row['No. Pesanan']) return;
+
+                // Hitung biaya-biaya secara total
+                const bruto = parseFloat(row['Harga Asli Produk']) || 0;
+                const biayaAdmin = parseFloat(row['Biaya Administrasi']) || 0;
+                const biayaLayanan = parseFloat(row['Biaya Layanan']) || 0;
+                const biayaTransaksi = parseFloat(row['Biaya Transaksi']) || 0;
+                const totalPotongan = Math.abs(biayaAdmin + biayaLayanan + biayaTransaksi);
+                const netIncome = parseFloat(row['Total Penghasilan']) || 0;
+
+                // Susun objek data sesuai kebutuhan sheet baru Anda
+                shopeeDataToSave.push({
+                    tgl_cair: row['Tanggal Dana Dilepaskan'] || '-',
+                    no_pesanan: row['No. Pesanan'],
+                    sku: row['Username (Pembeli)'] || '-', // Sebagai referensi identitas
+                    omzet_bruto: bruto,
+                    total_potongan: totalPotongan,
+                    net_income: netIncome
+                });
+            });
+
+            if (shopeeDataToSave.length === 0) {
+                alert("Tidak ada data transaksi yang valid ditemukan.");
+                return;
+            }
+
+            // 3. Kirim ke Google Apps Script
+            // Ganti SCRIPT_URL dengan URL Web App Anda
+            const response = await fetch(window.SCRIPT_URL, {
+                method: 'POST',
+                mode: 'no-cors', // Penting untuk Apps Script
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'insertShopeeData',
+                    data: shopeeDataToSave
+                })
+            });
+
+            alert(`Berhasil memproses ${shopeeDataToSave.length} transaksi Shopee ke sheet shopee_income!`);
+            
+            // Refresh data jika ada fungsi fetch global
+            if (typeof fetchAllData === "function") fetchAllData();
+
+        } catch (error) {
+            console.error("Error processing Excel:", error);
+            alert("Terjadi kesalahan saat membaca file Excel.");
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+
        function calculateStats() {
     let masuk = 0, keluar = 0, piutangTerfilter = 0, piutangTotalSemua = 0, totalRefund = 0;
     
@@ -429,6 +519,10 @@ function renderLabaRugi() {
     let sisaPiutangPeriodeIni = 0;
     let beban = 0;
     let pengembalian = 0;
+    
+    // Variabel Khusus Shopee
+    let omzetShopee = 0;
+    let potonganShopee = 0;
 
     // 1. Ambil Filter Tanggal
     const startInput = document.getElementById('lrDateStart').value;
@@ -441,92 +535,99 @@ function renderLabaRugi() {
     if (db.piutang) {
         db.piutang.forEach(p => {
             const pDate = new Date(p["Waktu"]).getTime();
-            if (!isNaN(pDate)) {
-                if (pDate >= startTime && pDate <= endTime) {
-                    // Logika Baru: Total Tagihan dikurangi DP
-                    const totalTagihan = parseFloat(p["Total Tagihan"]) || 0;
-                    const dp = parseFloat(p["DP"]) || 0;
-                    sisaPiutangPeriodeIni += (totalTagihan - dp);
-                }
+            if (!isNaN(pDate) && pDate >= startTime && pDate <= endTime) {
+                const totalTagihan = parseFloat(p["Total Tagihan"]) || 0;
+                const dp = parseFloat(p["DP"]) || 0;
+                sisaPiutangPeriodeIni += (totalTagihan - dp);
             }
         });
     }
 
-    // 3. HITUNG TRANSAKSI (Cash Flow)
+    // 3. HITUNG TRANSAKSI (Cash Flow Manual)
     db.transaksi.forEach(r => {
-        const dateStr = r["Waktu"];
-        const itemTime = new Date(dateStr).getTime();
-        
-        // Filter Tanggal
+        const itemTime = new Date(r["Waktu"]).getTime();
         if (!isNaN(itemTime) && itemTime >= startTime && itemTime <= endTime) {
             const cat = (r["Kategori"] || "").toLowerCase().trim();
 
-            // A. Abaikan Transfer & Saldo Awal
-            if (["transfer saldo", "saldo awal"].some(ex => cat.includes(ex))) {
-                return; 
-            }
+            if (["transfer saldo", "saldo awal"].some(ex => cat.includes(ex))) return; 
 
-            // B. Logika Pengembalian Dana
             if (cat.includes("pengembalian dana")) {
                 pengembalian += parseFloat(r["Keluar"]) || 0;
-            } 
-            // C. Logika Pendapatan & Beban
-            else {
-                // PENTING: Abaikan "Pelunasan Piutang" agar tidak double counting 
-                // karena piutang sudah dihitung saat transaksi awal terjadi.
+            } else {
                 if (!cat.includes("cicilan piutang")) {
                     pendapatanTunai += parseFloat(r["Masuk"]) || 0;
                 }
-                
-                // Hitung semua pengeluaran sebagai beban operasional
                 beban += parseFloat(r["Keluar"]) || 0;
             }
         }
     });
 
-    
+    // 4. LOGIKA BARU: HITUNG DATA SHOPEE
+    if (db.shopee_income) {
+        db.shopee_income.forEach(s => {
+            const sDate = new Date(s.tgl_cair).getTime();
+            if (!isNaN(sDate) && sDate >= startTime && sDate <= endTime) {
+                omzetShopee += parseFloat(s.omzet_bruto) || 0;
+                potonganShopee += parseFloat(s.total_potongan) || 0;
+            }
+        });
+    }
 
-    // 4. KALKULASI AKHIR
-    const pendapatanKotorTotal = pendapatanTunai + sisaPiutangPeriodeIni;
+    // 5. KALKULASI AKHIR (Gabungan Manual + Shopee)
+    const pendapatanKotorTotal = pendapatanTunai + sisaPiutangPeriodeIni + omzetShopee;
+    const totalBebanGabungan = beban + potonganShopee;
     const pendapatanBersih = pendapatanKotorTotal - pengembalian;
-    const labaBersih = pendapatanBersih - beban;
+    const labaBersih = pendapatanBersih - totalBebanGabungan;
 
-    // 5. RENDER TAMPILAN
+    // 6. RENDER TAMPILAN
     container.innerHTML = `
         <div class="mb-4 text-[10px] font-bold text-blue-600 uppercase tracking-widest">
             Analisis Periode: ${startInput || 'Semua'} - ${endInput || 'Sekarang'}
         </div>
         <div class="space-y-4">
             <div class="flex justify-between border-b border-slate-100 pb-2">
-                <span class="text-sm text-slate-600">Penjualan Tunai</span>
+                <span class="text-sm text-slate-600">Penjualan Toko (Tunai)</span>
                 <span class="text-sm font-medium text-slate-900">${formatIDR(pendapatanTunai)}</span>
             </div>
             <div class="flex justify-between border-b border-slate-100 pb-2">
-                <span class="text-sm text-slate-600">Piutang</span>
-                <span class="text-sm font-medium text-orange-600">+${formatIDR(sisaPiutangPeriodeIni)}</span>
+                <span class="text-sm text-slate-600">Penjualan Shopee (Bruto)</span>
+                <span class="text-sm font-medium text-orange-600">${formatIDR(omzetShopee)}</span>
             </div>
-            <div class="flex justify-between border-b border-slate-100 pb-3 font-bold">
-                <span class="text-sm text-slate-700">Total Pendapatan Kotor</span>
+            <div class="flex justify-between border-b border-slate-100 pb-2">
+                <span class="text-sm text-slate-600">Piutang Pelanggan</span>
+                <span class="text-sm font-medium text-blue-500">+${formatIDR(sisaPiutangPeriodeIni)}</span>
+            </div>
+            <div class="flex justify-between border-b border-slate-100 pb-3 font-bold bg-slate-50 p-2 rounded-lg mt-2">
+                <span class="text-sm text-slate-700">Total Omzet Kotor</span>
                 <span class="text-sm text-green-600">${formatIDR(pendapatanKotorTotal)}</span>
             </div>
-            <div class="flex justify-between border-b border-slate-100 pb-3">
-                <span class="text-sm text-slate-600">Pengembalian Dana (Retur)</span>
-                <span class="text-sm font-bold text-red-500">-${formatIDR(pengembalian)}</span>
-            </div>
-            <div class="flex justify-between items-center bg-slate-50 p-3 rounded-lg font-bold">
-                <span class="text-sm text-slate-700">Total Pendapatan Bersih</span>
-                <span class="text-sm text-slate-900">${formatIDR(pendapatanBersih)}</span>
-            </div>
-            <div class="flex justify-between border-b border-slate-100 pb-3 pt-2">
-                <span class="text-sm text-slate-600">Total Beban Operasional</span>
-                <span class="text-sm font-bold text-red-600">-${formatIDR(beban)}</span>
-            </div>
-            <div class="mt-6 p-4 rounded-xl ${labaBersih >= 0 ? 'bg-blue-50' : 'bg-red-50'}">
-                <div class="flex justify-between items-center">
-                    <span class="font-bold ${labaBersih >= 0 ? 'text-blue-800' : 'text-red-800'}">LABA / RUGI BERSIH</span>
-                    <span class="text-xl font-black ${labaBersih >= 0 ? 'text-blue-700' : 'text-red-700'}">${formatIDR(labaBersih)}</span>
+
+            <div class="pt-2">
+                <div class="flex justify-between text-xs text-slate-500 mb-1">
+                    <span>Beban Operasional Toko</span>
+                    <span>-${formatIDR(beban)}</span>
+                </div>
+                <div class="flex justify-between text-xs text-slate-500 mb-1">
+                    <span>Biaya Admin & Layanan Shopee</span>
+                    <span>-${formatIDR(potonganShopee)}</span>
+                </div>
+                <div class="flex justify-between text-xs text-red-500 mb-2">
+                    <span>Retur / Pengembalian Dana</span>
+                    <span>-${formatIDR(pengembalian)}</span>
                 </div>
             </div>
+
+            <div class="mt-6 p-4 rounded-2xl ${labaBersih >= 0 ? 'bg-blue-600 text-white' : 'bg-red-600 text-white'} shadow-lg transition-all">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <p class="text-[10px] font-bold uppercase opacity-80">Laba / Rugi Bersih</p>
+                        <h3 class="text-2xl font-black">${formatIDR(labaBersih)}</h3>
+                    </div>
+                    <i class="fas ${labaBersih >= 0 ? 'fa-chart-line' : 'fa-chart-bar'} text-3xl opacity-30"></i>
+                </div>
+            </div>
+            
+            <p class="text-[9px] text-center text-slate-400 italic">Data shopee diambil berdasarkan tanggal dana dilepaskan.</p>
         </div>
     `;
 }
@@ -543,10 +644,11 @@ function renderLaporanKas() {
         operasional: 0, 
         saldo: 0,
         cash: 0,
-        rekening: 0
+        rekening: 0,
+        saldoShopee: 0
     };
 
-    // 1. Hitung Saldo & Kategori dari Transaksi
+    // 1. Hitung Saldo & Kategori dari Transaksi Manual
     db.transaksi.forEach(row => {
         const masuk = parseFloat(row["Masuk"]) || 0;
         const keluar = parseFloat(row["Keluar"]) || 0;
@@ -558,7 +660,6 @@ function renderLaporanKas() {
             data.saldoAwal += masuk;
         }
 
-        // PENDAPATAN (Filter: Bukan saldo awal, bukan transfer, bukan cancel)
         if (masuk > 0 && !kategori.includes("saldo awal") && !kategori.includes("transfer") && !kategori.includes("cancel order")) {
             if (kategori.includes("cicilan") || kategori.includes("piutang")) {
                 data.cicilanPiutang += masuk;
@@ -567,7 +668,6 @@ function renderLaporanKas() {
             }
         }
         
-        // PENGELUARAN (Filter: Bukan transfer, bukan refund)
         if (keluar > 0) {
             if (kategori.includes("beli") || kategori.includes("stok")) {
                 data.pembelian += keluar;
@@ -576,7 +676,6 @@ function renderLaporanKas() {
             }
         }
 
-        // Akumulasi Saldo Real (Sesuai mutasi kas/bank)
         if (metode.includes("rekening") || metode.includes("bank") || metode.includes("tf")) {
             data.rekening += netto;
         } else {
@@ -585,37 +684,49 @@ function renderLaporanKas() {
         data.saldo += netto;
     });
 
-    // 2. Hitung Sisa Piutang dari database piutang
+    // 2. Hitung Sisa Piutang Manual
     db.piutang.forEach(row => {
         data.sisaPiutang += parseFloat(row["Sisa Piutang"] || row["Sisa"] || 0);
     });
 
-    // --- LOGIKA BARU AGAR SINKRON ---
-    
-    // Total Penjualan murni (Semua yang sudah jadi uang masuk dari penjualan)
+    // 3. LOGIKA BARU: Hitung Saldo Shopee dari db.shopee_income
+    // Menggunakan net_income karena ini dana yang siap ditarik/sudah dilepaskan
+    if (db.shopee_income) {
+        db.shopee_income.forEach(row => {
+            data.saldoShopee += parseFloat(row.net_income) || 0;
+        });
+    }
+
     const totalPenjualanUangMasuk = data.penjualanLangsung + data.cicilanPiutang;
-    
-    // Total Pendapatan Kas = Saldo Awal + Uang Masuk Penjualan
     const totalPendapatanKas = data.saldoAwal + totalPenjualanUangMasuk;
-    
-    // Total Pengeluaran Kas
     const totalSemuaPengeluaran = data.pembelian + data.operasional;
+
+    // Total Aset Liquid (Kas + Rekening + Shopee)
+    const totalAsetLiquid = data.saldo + data.saldoShopee;
 
     container.innerHTML = `
         <div class="space-y-6 animate-fade col-span-full">
             <div class="bg-gradient-to-br from-blue-600 to-indigo-700 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden text-center">
                 <p class="text-xs font-bold uppercase opacity-80 tracking-widest mb-2">Total Saldo Kas (Real)</p>
                 <h2 class="text-4xl font-black">${formatIDR(data.saldo)}</h2>
+                <div class="mt-4 pt-4 border-t border-white/20">
+                    <p class="text-[10px] uppercase opacity-70 mb-1">Total Aset (Termasuk Shopee)</p>
+                    <p class="text-lg font-bold">${formatIDR(totalAsetLiquid)}</p>
+                </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-3">
-                <div class="bg-white p-5 rounded-3xl border border-slate-100 card-shadow text-center">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Saldo Tunai</p>
-                    <p class="text-sm font-black text-slate-800">${formatIDR(data.cash)}</p>
+            <div class="grid grid-cols-3 gap-3">
+                <div class="bg-white p-4 rounded-3xl border border-slate-100 card-shadow text-center">
+                    <p class="text-[9px] font-bold text-slate-400 uppercase mb-1">Tunai</p>
+                    <p class="text-xs font-black text-slate-800">${formatIDR(data.cash)}</p>
                 </div>
-                <div class="bg-white p-5 rounded-3xl border border-slate-100 card-shadow text-center">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Rekening</p>
-                    <p class="text-sm font-black text-slate-800">${formatIDR(data.rekening)}</p>
+                <div class="bg-white p-4 rounded-3xl border border-slate-100 card-shadow text-center">
+                    <p class="text-[9px] font-bold text-slate-400 uppercase mb-1">Bank</p>
+                    <p class="text-xs font-black text-slate-800">${formatIDR(data.rekening)}</p>
+                </div>
+                <div class="bg-orange-50 p-4 rounded-3xl border border-orange-100 card-shadow text-center">
+                    <p class="text-[9px] font-bold text-orange-400 uppercase mb-1">Shopee</p>
+                    <p class="text-xs font-black text-orange-600">${formatIDR(data.saldoShopee)}</p>
                 </div>
             </div>
 
@@ -661,13 +772,18 @@ function renderLaporanKas() {
                             <td class="p-4 text-sm text-slate-600">Sisa Piutang (Belum Cair)</td>
                             <td class="p-4 text-right text-sm font-bold text-amber-600">${formatIDR(data.sisaPiutang)}</td>
                         </tr>
+                        <tr>
+                            <td class="p-4 text-sm text-slate-600">Saldo Shopee (Belum Tarik)</td>
+                            <td class="p-4 text-right text-sm font-bold text-orange-600">${formatIDR(data.saldoShopee)}</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
         </div>
     `;
 }
-        
+    
+
 // Fungsi Reset jika ingin kembali ke pengaturan awal
 function resetLRFilter() {
     document.getElementById('lrDateStart').value = document.getElementById('dateStart').value;
