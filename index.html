@@ -444,7 +444,7 @@ async function processShopeeExcel(file, actionTarget) {
     }
 }
         
-        async function fetchAllData() {
+     async function fetchAllData() {
     const btn = document.getElementById('refreshBtn');
     const loader = document.getElementById('loadingOverlay');
     btn.disabled = true;
@@ -462,10 +462,18 @@ async function processShopeeExcel(file, actionTarget) {
         db.piutang = results[1];
         db.stok = results[2];
 
-        // 2. AMBIL DATA SHOPEE DARI APPS SCRIPT
-        const shopeeRes = await fetch(`${window.SCRIPT_URL}?action=getShopeeData`);
-        const shopeeJson = await shopeeRes.json();
-        db.shopee_income = shopeeJson.data || [];
+        // 2. AMBIL DATA SHOPEE (Akun 1 & Akun 2)
+        // Kita gunakan Promise.all agar pengambilan data Shopee 1 dan 2 berjalan bersamaan (lebih cepat)
+        const [shopeeRes1, shopeeRes2] = await Promise.all([
+            fetch(`${window.SCRIPT_URL}?action=getShopeeData`),
+            fetch(`${window.SCRIPT_URL}?action=getShopeeData2`)
+        ]);
+
+        const shopeeJson1 = await shopeeRes1.json();
+        const shopeeJson2 = await shopeeRes2.json();
+
+        db.shopee_income = shopeeJson1.data || [];
+        db.shopee_income2 = shopeeJson2.data || []; // <--- SEKARANG DATA AKUN 2 TERSIMPAN DI SINI
 
         setDateFilter('all');
     } catch (e) {
