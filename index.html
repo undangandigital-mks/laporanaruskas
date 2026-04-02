@@ -308,7 +308,7 @@ async function processShopeeExcel(file, actionTarget) {
                     no_pesanan: row['No. Pesanan'],
                     sku: row['Username (Pembeli)'] || '',
                     omzet_bruto: parseVal(row['Harga Asli Produk']) - Math.abs(parseVal(row['Jumlah Pengembalian Dana ke Pembeli'])) - Math.abs(parseVal(row['Total Diskon Produk'])),
-                    total_potongan: Math.abs(parseVal(row['Biaya Administrasi']) + parseVal(row['Biaya Layanan']) + parseVal(row['Biaya Transaksi'])),
+                    total_potongan: Math.abs(parseVal(row['Biaya Administrasi']) + parseVal(row['Biaya Layanan']) + parseVal(row['Biaya Proses Pesanan'])),
                     net_income: parseVal(row['Total Penghasilan'])
                 };
             });
