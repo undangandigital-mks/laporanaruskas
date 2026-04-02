@@ -252,7 +252,7 @@
             stok: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRvAQXltAVp8lnrXXVVPJr1hYEi8cAJrqz182qT23eaiI8t-MoBrEtE7bAAJqKEyKKTig4hpA9DNuQB/pub?gid=1595956432&single=true&output=csv"
         };
         // 1. Definisikan URL Apps Script di tingkat global (di awal script)
-window.SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyFJHftNDbxKdagVzclFjpSgDCvoHp527RbR1EZgfI8HTFXFRN4C5ccP8E5KJuEFPc/exec";
+window.SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxl4dKGb4shZfqkVg8KWi_LTkV-TOHPY_uQcVoKO_NiccMIu7p6AwPK6yFNtyVvI5c/exec";
 
 
         let currentTab = 'transaksi';
@@ -863,12 +863,13 @@ function renderLaporanKas() {
     `;
 }
 
+
 async function processPembelianExcel(file) {
     if (!file) return;
     
     const btn = document.querySelector("button[onclick*='pembelianInput']");
     const originalText = btn.innerHTML;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Mengelompokkan...';
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Memproses...';
     btn.disabled = true;
 
     const reader = new FileReader();
@@ -878,17 +879,21 @@ async function processPembelianExcel(file) {
             const workbook = XLSX.read(data, { type: 'array' });
             const rawData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
 
-            // --- PROSES GROUPING ---
+            // Grouping berdasarkan Keterangan
             const grouped = rawData.reduce((acc, row) => {
-                const key = row['Keterangan'];
-                if (!acc[key]) {
-                    acc[key] = {
-                        waktu: row['Waktu'],
-                        keterangan: key,
-                        kategori: 'Pembelian',
+                const ket = row['Keterangan'];
+                if (!acc[ket]) {
+                    acc[ket] = {
+                        id: "TRX-" + Date.now() + Math.floor(Math.random() * 1000),
+                        waktu: row['Waktu'] || new Date().toISOString().replace('T', ' ').split('.')[0],
+                        tipe: "KELUAR",
+                        kategori: "Pembelian",
+                        metode: row['Metode'] || "Cash",
+                        keterangan: ket,
                         masuk: 0,
                         keluar: 0,
-                        metode: row['Metode'] || 'Cash',
+                        subjek: row['Keterangan'].replace('Pembelian dari ', ''), // Ekstrak nama subjek jika ada
+                        diskon: 0,
                         items: []
                     };
                 }
@@ -897,8 +902,8 @@ async function processPembelianExcel(file) {
                 const qty = parseFloat(row['Qty']) || 0;
                 const totalRow = parseFloat(row['Total Harga Produk']) || (harga * qty);
 
-                acc[key].keluar += totalRow;
-                acc[key].items.push({
+                acc[ket].keluar += totalRow;
+                acc[ket].items.push({
                     nama: row['Nama Produk'],
                     qty: qty,
                     harga: harga
@@ -907,31 +912,28 @@ async function processPembelianExcel(file) {
                 return acc;
             }, {});
 
-            // Konversi objek grouped kembali ke array untuk dikirim
-            const finalData = Object.values(grouped).map(group => ({
-                ...group,
-                detail_json: JSON.stringify(group.items) // Detail semua produk di keterangan yang sama
+            const finalData = Object.values(grouped).map(g => ({
+                ...g,
+                detail_json: JSON.stringify(g.items)
             }));
 
-            if (finalData.length === 0) {
-                alert("Data kosong.");
-            } else {
-                await fetch(window.SCRIPT_URL, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'insertPembelianData',
-                        data: finalData
-                    })
-                });
+            if (finalData.length === 0) return alert("Data kosong");
 
-                alert(`Berhasil mengelompokkan menjadi ${finalData.length} transaksi.`);
-                fetchAllData(); 
-            }
+            await fetch(window.SCRIPT_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'insertPembelianData',
+                    data: finalData
+                })
+            });
+
+            alert(`Berhasil mengimpor ${finalData.length} transaksi pembelian.`);
+            if(typeof fetchAllData === 'function') fetchAllData(); 
         } catch (error) {
             console.error(error);
-            alert("Gagal memproses file. Pastikan kolom sesuai.");
+            alert("Gagal: Pastikan header Excel sesuai: Waktu, Keterangan, Nama Produk, Harga Produk, Qty, Total Harga Produk, Metode");
         } finally {
             btn.innerHTML = originalText;
             btn.disabled = false;
@@ -939,8 +941,6 @@ async function processPembelianExcel(file) {
     };
     reader.readAsArrayBuffer(file);
 }
-
-
         
 // Fungsi Reset jika ingin kembali ke pengaturan awal
 function resetLRFilter() {
