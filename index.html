@@ -702,92 +702,101 @@ if (db.shopee_income && Array.isArray(db.shopee_income)) {
         
 
 function renderLaporanKas() {
-    const container = document.getElementById('kasContent'); 
-    
-    let data = { 
-        saldoAwal: 0,
-        penjualanLangsung: 0, 
-        cicilanPiutang: 0,
-        sisaPiutang: 0, 
-        pembelian: 0, 
-        operasional: 0, 
-        saldo: 0,
-        cash: 0,
-        rekening: 0,
-        saldoShopee: 0,
-        totalTarikShopee: 0 // Variabel baru untuk menampung dana yang sudah ditarik
-    };
+   const container = document.getElementById('kasContent'); 
 
-    // 1. Hitung Saldo & Kategori dari Transaksi Manual
-    db.transaksi.forEach(row => {
-        const masuk = parseFloat(row["Masuk"]) || 0;
-        const keluar = parseFloat(row["Keluar"]) || 0;
-        const kategori = (row["Kategori"] || "").toLowerCase().trim();
-        const keterangan = (row["Keterangan"] || "").toLowerCase().trim();
-        const metode = (row["Metode"] || "cash").toLowerCase();
-        const netto = masuk - keluar;
+let data = { 
+    saldoAwal: 0,
+    penjualanLangsung: 0, 
+    cicilanPiutang: 0,
+    sisaPiutang: 0, 
+    pembelian: 0, 
+    operasional: 0, 
+    saldo: 0,
+    cash: 0,
+    rekening: 0,
+    saldoShopee: 0,
+    totalTarikShopee: 0 
+};
 
-        if (kategori.includes("saldo awal")) {
-            data.saldoAwal += masuk;
-        }
+// 1. Hitung Saldo & Kategori dari Transaksi Manual
+db.transaksi.forEach(row => {
+    const masuk = parseFloat(row["Masuk"]) || 0;
+    const keluar = parseFloat(row["Keluar"]) || 0;
+    const kategori = (row["Kategori"] || "").toLowerCase().trim();
+    const keterangan = (row["Keterangan"] || "").toLowerCase().trim();
+    const metode = (row["Metode"] || "cash").toLowerCase();
+    const netto = masuk - keluar;
 
-        // Cek jika ini adalah transaksi penarikan dana Shopee
-        if (keterangan.includes("tarik dana shopee1")) {
-            data.totalTarikShopee += masuk;
-        }
-
-        if (masuk > 0 && !kategori.includes("saldo awal") && !kategori.includes("transfer") && !kategori.includes("cancel order")) {
-            // Jika keterangan mengandung 'tarik dana shopee', jangan masukkan ke penjualan langsung toko
-            if (keterangan.includes("tarik dana shopee1")) {
-                // Skip: tidak masuk penjualan toko karena sumbernya dari Shopee
-            } else if (kategori.includes("cicilan") || kategori.includes("piutang")) {
-                data.cicilanPiutang += masuk;
-            } else {
-                data.penjualanLangsung += masuk;
-            }
-        }
-        
-        if (keluar > 0) {
-            if (kategori.includes("beli") || kategori.includes("stok")) {
-                data.pembelian += keluar;
-            } else if (!kategori.includes("transfer") && !kategori.includes("pengembalian dana")) {
-                data.operasional += keluar;
-            }
-        }
-
-        // Pisahkan saldo berdasarkan metode
-        if (metode.includes("rekening") || metode.includes("bank") || metode.includes("tf")) {
-            data.rekening += netto;
-        } else {
-            data.cash += netto;
-        }
-        data.saldo += netto;
-    });
-
-    // 2. Hitung Sisa Piutang Manual
-    db.piutang.forEach(row => {
-        data.sisaPiutang += parseFloat(row["Sisa Piutang"] || row["Sisa"] || 0);
-    });
-
-    // 3. HITUNG SALDO SHOPEE (Logika Laba Rugi)
-    let totalPendapatanShopeeNet = 0;
-    if (db.shopee_income && Array.isArray(db.shopee_income)) {
-        db.shopee_income.forEach(s => {
-            // Gunakan properti yang sesuai dengan log console Anda ('Net Income' atau 'Netto')
-            const net = parseFloat(s['Net Income'] || s.net_income || s['Total Penghasilan']) || 0;
-            totalPendapatanShopeeNet += net;
-        });
+    if (kategori.includes("saldo awal")) {
+        data.saldoAwal += masuk;
     }
 
-    // Saldo Shopee Real = Total Pendapatan Shopee - Total yang sudah ditarik ke Kas/Bank
-    data.saldoShopee = totalPendapatanShopeeNet - data.totalTarikShopee;
+    // --- LOGIKA FILTER SHOPEE ---
+    // Kita buat variabel boolean agar pengecekan konsisten
+    const isShopee1 = keterangan.includes("tarik dana shopee1");
 
-    // Perhitungan Final
-    const totalPenjualanUangMasuk = data.penjualanLangsung + data.cicilanPiutang;
-    const totalPendapatanKas = data.saldoAwal + totalPenjualanUangMasuk + data.totalTarikShopee;
-    const totalSemuaPengeluaran = data.pembelian + data.operasional;
-    const totalAsetLiquid = data.saldo + data.saldoShopee;
+    // Jika Shopee1, masukkan ke penampung penarikan shopee
+    if (isShopee1) {
+        data.totalTarikShopee += masuk;
+    }
 
+    if (masuk > 0 && !kategori.includes("saldo awal") && !kategori.includes("transfer") && !kategori.includes("cancel order")) {
+        
+        if (isShopee1) {
+            // JANGAN masukkan ke penjualan offline jika kodenya 'shopee1'
+            // Ini dianggap murni perpindahan saldo dari Shopee ke Kas/Bank
+        } else if (kategori.includes("cicilan") || kategori.includes("piutang")) {
+            data.cicilanPiutang += masuk;
+        } else {
+            /** * Shopee2 atau keterangan lainnya akan masuk ke sini.
+             * Ini akan dihitung sebagai Penjualan Toko (Offline).
+             */
+            data.penjualanLangsung += masuk;
+        }
+    }
+    
+    // --- LOGIKA PENGELUARAN ---
+    if (keluar > 0) {
+        if (kategori.includes("beli") || kategori.includes("stok")) {
+            data.pembelian += keluar;
+        } else if (!kategori.includes("transfer") && !kategori.includes("pengembalian dana")) {
+            data.operasional += keluar;
+        }
+    }
+
+    // Pisahkan saldo berdasarkan metode
+    if (metode.includes("rekening") || metode.includes("bank") || metode.includes("tf")) {
+        data.rekening += netto;
+    } else {
+        data.cash += netto;
+    }
+    data.saldo += netto;
+});
+
+// 2. Hitung Sisa Piutang Manual
+db.piutang.forEach(row => {
+    data.sisaPiutang += parseFloat(row["Sisa Piutang"] || row["Sisa"] || 0);
+});
+
+// 3. HITUNG SALDO SHOPEE (Logika Laba Rugi)
+let totalPendapatanShopeeNet = 0;
+if (db.shopee_income && Array.isArray(db.shopee_income)) {
+    db.shopee_income.forEach(s => {
+        const net = parseFloat(s['Net Income'] || s.net_income || s['Total Penghasilan']) || 0;
+        totalPendapatanShopeeNet += net;
+    });
+}
+
+/**
+ * Saldo Shopee Real = Total Pendapatan Shopee - Total yang ditarik lewat 'shopee1'
+ * Shopee2 tidak mengurangi saldo ini karena dianggap sudah masuk ke Kas Toko sebagai 'Penjualan'.
+ */
+data.saldoShopee = totalPendapatanShopeeNet - data.totalTarikShopee;
+
+// Perhitungan Final
+const totalPenjualanUangMasuk = data.penjualanLangsung + data.cicilanPiutang;
+const totalAsetLiquid = data.saldo + data.saldoShopee;
+    
     // 4. RENDER TAMPILAN (Sama seperti sebelumnya, data.saldoShopee sekarang sudah akurat)
     container.innerHTML = `
         <div class="space-y-6 animate-fade col-span-full">
