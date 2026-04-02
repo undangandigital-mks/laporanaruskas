@@ -468,6 +468,17 @@ async function processShopeeExcel(file) {
 
 
        function calculateStats() {
+
+    const statsGrid = document.getElementById('statsGrid');
+
+    // 2. Jika sedang di tab stok, sembunyikan grid dan hentikan fungsi
+    if (currentTab === 'stok') {
+        statsGrid.classList.add('hidden');
+        return; 
+    } else {
+        statsGrid.classList.remove('hidden');
+    }
+           
     let masuk = 0, keluar = 0, piutangTerfilter = 0, piutangTotalSemua = 0, totalRefund = 0;
     
     const excludedCategories = ["transfer saldo", "saldo awal"];
