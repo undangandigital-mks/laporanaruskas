@@ -591,30 +591,41 @@ function renderLabaRugi() {
     // 4. LOGIKA BARU: HITUNG DATA SHOPEE
     console.log("Data Shopee di DB:", db.shopee_income);
 console.log("Filter Range:", new Date(startTime), "sampai", new Date(endTime));
-   if (db.shopee_income && Array.isArray(db.shopee_income)) {
+  // 4. LOGIKA BARU: HITUNG DATA SHOPEE
+if (db.shopee_income && Array.isArray(db.shopee_income)) {
+    // Fungsi pembantu untuk membersihkan angka (diletakkan di dalam loop agar aman)
+    const parseAmount = (val) => {
+        if (typeof val === 'number') return val;
+        if (!val) return 0;
+        // Menghapus karakter non-numerik kecuali titik dan minus
+        return parseFloat(String(val).replace(/[^\d.-]/g, '')) || 0;
+    };
+
     db.shopee_income.forEach(s => {
-        // Gunakan nilai mentah atau fallback ke nama kolom asli Shopee jika tgl_cair kosong
         const rawDate = s.tgl_cair || s['Tanggal Dana Dilepaskan'];
         if (!rawDate) return;
 
-        const sDate = new Date(rawDate).getTime();
-        
-        // Pastikan startTime dan endTime sudah diset jam 00:00 dan 23:59
-        if (!isNaN(sDate) && sDate >= startTime && sDate <= endTime) {
-            // Bersihkan karakter non-numerik jika ada (seperti Rp atau titik ribuan)
-            const parseAmount = (val) => {
-                if (typeof val === 'number') return val;
-                if (!val) return 0;
-                return parseFloat(String(val).replace(/[^\d.-]/g, '')) || 0;
-            };
+        // Normalisasi Tanggal: "2026-03-25T16:00:00.000Z" -> "2026-03-25"
+        const cleanDateStr = String(rawDate).substring(0, 10);
+        const sDate = new Date(cleanDateStr).setHours(0, 0, 0, 0);
 
+        // Normalisasi Filter (Awal hari dan Akhir hari)
+        const filterStart = startInput ? new Date(startInput).setHours(0, 0, 0, 0) : -Infinity;
+        const filterEnd = endInput ? new Date(endInput).setHours(23, 59, 59, 999) : Infinity;
+
+        if (sDate >= filterStart && sDate <= filterEnd) {
+            // Mapping nama kolom sesuai database Sheets atau hasil import
             const bruto = parseAmount(s.omzet_bruto || s['Harga Asli Produk']);
-            const potongan = parseAmount(s.total_potongan || s['Biaya Administrasi']); 
-            // Catatan: Jika total_potongan belum dihitung saat import, 
-            // Anda bisa menghitungnya di sini: (Harga Asli - Total Penghasilan)
+            
+            // Perhitungan potongan: Jika total_potongan kosong, hitung selisih Bruto dan Netto
+            let potongan = parseAmount(s.total_potongan);
+            if (potongan === 0) {
+                const netto = parseAmount(s.net_income || s['Total Penghasilan']);
+                potongan = bruto - netto;
+            }
 
             omzetShopee += bruto;
-            potonganShopee += potongan;
+            potonganShopee += (potongan > 0 ? potongan : 0);
         }
     });
 }
