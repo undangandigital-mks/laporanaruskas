@@ -579,8 +579,7 @@ function renderLabaRugi() {
         });
     }
 
-    // 3. HITUNG TRANSAKSI (Cash Flow Manual)
-    // 3. HITUNG TRANSAKSI (Cash Flow Manual)
+      // 3. HITUNG TRANSAKSI (Cash Flow Manual)
 db.transaksi.forEach(r => {
     const itemTime = new Date(r["Waktu"]).getTime();
     if (!isNaN(itemTime) && itemTime >= startTime && itemTime <= endTime) {
@@ -739,7 +738,7 @@ function renderLaporanKas() {
 
         if (masuk > 0 && !kategori.includes("saldo awal") && !kategori.includes("transfer") && !kategori.includes("cancel order")) {
             // Jika keterangan mengandung 'tarik dana shopee', jangan masukkan ke penjualan langsung toko
-            if (keterangan.includes("tarik dana shopee")) {
+            if (keterangan.includes("tarik dana shopee1")) {
                 // Skip: tidak masuk penjualan toko karena sumbernya dari Shopee
             } else if (kategori.includes("cicilan") || kategori.includes("piutang")) {
                 data.cicilanPiutang += masuk;
