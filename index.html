@@ -580,7 +580,7 @@ db.transaksi.forEach(r => {
         // Filter pengecualian: Transfer Saldo, Saldo Awal, DAN Tarik Dana Shopee
         if (
             ["transfer saldo", "saldo awal"].some(ex => cat.includes(ex)) || 
-            ket.includes("tarik dana shopee")
+            ket.includes("tarik dana shopee1")
         ) {
             return; 
         }
