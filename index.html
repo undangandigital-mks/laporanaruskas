@@ -909,20 +909,28 @@ function renderLaporanKas() {
                         </tr>
 
                         <tr class="bg-orange-50/50">
-                            <td colspan="2" class="p-3 sm:p-4 text-[9px] sm:text-[10px] font-black text-orange-600 uppercase tracking-wider">D. Platform Online (Shopee)</td>
-                        </tr>
-                        <tr class="text-[10px] sm:text-[11px]">
-                            <td class="p-2 sm:p-3 pl-6 sm:pl-8 text-slate-500">Pencairan (S1 + S2)</td>
-                            <td class="p-2 sm:p-3 text-right font-bold text-orange-600">+${formatIDR(data.totalTarikShopee1 + data.totalTarikShopee2)}</td>
-                        </tr>
-                        <tr class="text-[10px] sm:text-[11px]">
-                            <td class="p-2 sm:p-3 pl-6 sm:pl-8 text-slate-500 italic">Total Saldo Shopee</td>
-                            <td class="p-2 sm:p-3 text-right text-orange-600">${formatIDR(data.saldoShopee1 + data.saldoShopee2)}</td>
-                        </tr>
-                        <tr class="font-black bg-orange-100/40">
-                            <td class="p-3 sm:p-4 text-[9px] sm:text-[10px] text-orange-800 uppercase pl-6 sm:pl-8 text-right">Total (D)</td>
-                            <td class="p-3 sm:p-4 text-right text-xs sm:text-sm text-orange-800">${formatIDR(totalD)}</td>
-                        </tr>
+    <td colspan="2" class="p-3 sm:p-4 text-[9px] sm:text-[10px] font-black text-orange-600 uppercase tracking-wider">D. Platform Online (Shopee)</td>
+</tr>
+<tr class="text-[10px] sm:text-[11px]">
+    <td class="p-2 sm:p-3 pl-6 sm:pl-8 text-slate-500">Pencairan Shopee 1</td>
+    <td class="p-2 sm:p-3 text-right font-medium text-orange-600">+${formatIDR(data.totalTarikShopee1)}</td>
+</tr>
+<tr class="text-[10px] sm:text-[11px]">
+    <td class="p-2 sm:p-3 pl-6 sm:pl-8 text-slate-500 border-b border-slate-50">Pencairan Shopee 2</td>
+    <td class="p-2 sm:p-3 text-right font-medium text-orange-600 border-b border-slate-50">+${formatIDR(data.totalTarikShopee2)}</td>
+</tr>
+<tr class="text-[10px] sm:text-[11px]">
+    <td class="p-2 sm:p-3 pl-6 sm:pl-8 text-slate-500 italic">Sisa Saldo Shopee 1</td>
+    <td class="p-2 sm:p-3 text-right text-slate-600">${formatIDR(data.saldoShopee1)}</td>
+</tr>
+<tr class="text-[10px] sm:text-[11px]">
+    <td class="p-2 sm:p-3 pl-6 sm:pl-8 text-slate-500 italic">Sisa Saldo Shopee 2</td>
+    <td class="p-2 sm:p-3 text-right text-slate-600">${formatIDR(data.saldoShopee2)}</td>
+</tr>
+<tr class="font-black bg-orange-100/40">
+    <td class="p-3 sm:p-4 text-[9px] sm:text-[10px] text-orange-800 uppercase pl-6 sm:pl-8 text-right">Total Nilai Platform (D)</td>
+    <td class="p-3 sm:p-4 text-right text-xs sm:text-sm text-orange-800">${formatIDR(totalD)}</td>
+</tr>
                     </tbody>
                 </table>
             </div>
