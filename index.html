@@ -361,7 +361,6 @@ window.SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz4hjH4HJpfjpydUnQf
 async function processShopeeExcel(file) {
     if (!file) return;
     
-    // Notifikasi loading sederhana
     const btn = document.querySelector("button[onclick*='shopeeInput']");
     const originalText = btn.innerHTML;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Memproses...';
@@ -373,41 +372,55 @@ async function processShopeeExcel(file) {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
             
-            // Mencari sheet "Income" (Shopee biasanya menamakan sheet pertamanya 'Income')
             const sheetName = "Income";
             const worksheet = workbook.Sheets[sheetName];
             
             if (!worksheet) {
-                alert("Gagal: Sheet bernama 'Income' tidak ditemukan dalam file ini.");
+                alert("Gagal: Sheet bernama 'Income' tidak ditemukan.");
                 btn.innerHTML = originalText;
                 btn.disabled = false;
                 return;
             }
 
-            // Shopee memiliki header di baris ke-6 (index 5)
             const rawData = XLSX.utils.sheet_to_json(worksheet, { range: 5 });
             const shopeeDataToSave = [];
 
+            // Fungsi pembantu untuk konversi angka aman
+            const parseVal = (val) => {
+                if (typeof val === 'number') return val;
+                if (!val || val === "-") return 0;
+                return parseFloat(String(val).replace(/[^\d.-]/g, '')) || 0;
+            };
+
             rawData.forEach(row => {
-                // Pastikan baris memiliki nomor pesanan
                 if (row['No. Pesanan']) {
-                    const bruto = parseFloat(row['Harga Asli Produk']) || 0;
-                    const netIncome = parseFloat(row['Total Penghasilan']) || 0;
+                    // 1. Ambil Komponen Pendapatan
+                    const hargaAsli = parseVal(row['Harga Asli Produk']);
+                    const returKePembeli = parseVal(row['Jumlah Pengembalian Dana ke Pembeli']);
+                    const diskonProduk = parseVal(row['Total Diskon Produk']);
+
+                    /**
+                     * LOGIKA BRUTO BERSIH:
+                     * Karena nilai Retur dan Diskon di Excel Shopee biasanya negatif (minus),
+                     * kita gunakan Math.abs() agar menjadi positif, lalu dikurangi dari Harga Asli.
+                     */
+                    const brutoBersih = hargaAsli - Math.abs(returKePembeli) - Math.abs(diskonProduk);
                     
-                    // Hitung total semua potongan (Admin, Layanan, Transaksi, Kampanye)
-                    const admin = parseFloat(row['Biaya Administrasi']) || 0;
-                    const layanan = parseFloat(row['Biaya Layanan']) || 0;
-                    const transaksi = parseFloat(row['Biaya Transaksi']) || 0;
-                    const kampanye = parseFloat(row['Biaya Kampanye']) || 0;
-                    const proses = parseFloat(row['Biaya Proses Pesanan']) || 0;
+                    // 2. Hitung total semua potongan (Biaya Admin, Layanan, dll)
+                    const admin = parseVal(row['Biaya Administrasi']);
+                    const layanan = parseVal(row['Biaya Layanan']);
+                    const transaksi = parseVal(row['Biaya Transaksi']);
+                    const kampanye = parseVal(row['Biaya Kampanye']);
+                    const proses = parseVal(row['Biaya Proses Pesanan']);
                     
                     const totalPotongan = Math.abs(admin + layanan + transaksi + kampanye + proses);
+                    const netIncome = parseVal(row['Total Penghasilan']);
 
                     shopeeDataToSave.push({
                         tgl_cair: row['Tanggal Dana Dilepaskan'] || '',
                         no_pesanan: row['No. Pesanan'],
                         pembeli: row['Username (Pembeli)'] || '',
-                        omzet_bruto: bruto,
+                        omzet_bruto: brutoBersih,
                         total_potongan: totalPotongan,
                         net_income: netIncome
                     });
@@ -415,12 +428,11 @@ async function processShopeeExcel(file) {
             });
 
             if (shopeeDataToSave.length === 0) {
-                alert("Data kosong atau format header salah. Pastikan menggunakan file asli Shopee.");
+                alert("Data kosong atau format header salah.");
             } else {
-                // Kirim data ke Google Apps Script
                 await fetch(window.SCRIPT_URL, {
                     method: 'POST',
-                    mode: 'no-cors',
+                    mode: 'no-cors', // Tetap gunakan mode ini jika Apps Script tidak diatur CORS-nya
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         action: 'insertShopeeData',
@@ -428,9 +440,7 @@ async function processShopeeExcel(file) {
                     })
                 });
 
-                alert(`Berhasil mengimpor ${shopeeDataToSave.length} data transaksi Shopee!`);
-                
-                // Refresh data dashboard jika fungsi tersedia
+                alert(`Berhasil mengimpor ${shopeeDataToSave.length} data. Data lama telah dibersihkan.`);
                 if (typeof fetchAllData === "function") fetchAllData();
             }
 
@@ -596,10 +606,10 @@ db.transaksi.forEach(r => {
     }
 });
 
-    // 4. LOGIKA BARU: HITUNG DATA SHOPEE
+     
     console.log("Data Shopee di DB:", db.shopee_income);
 console.log("Filter Range:", new Date(startTime), "sampai", new Date(endTime));
-  // 4. LOGIKA BARU: HITUNG DATA SHOPEE
+
 // 4. LOGIKA BARU: HITUNG DATA SHOPEE
 if (db.shopee_income && Array.isArray(db.shopee_income)) {
     const parseAmount = (val) => {
