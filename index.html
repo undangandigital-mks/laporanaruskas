@@ -252,7 +252,7 @@
             stok: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRvAQXltAVp8lnrXXVVPJr1hYEi8cAJrqz182qT23eaiI8t-MoBrEtE7bAAJqKEyKKTig4hpA9DNuQB/pub?gid=1595956432&single=true&output=csv"
         };
         // 1. Definisikan URL Apps Script di tingkat global (di awal script)
-window.SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz4hjH4HJpfjpydUnQfJ_w71kGtcoyhgL4KZjwFrqoEQDBwlFekKOcEGyi2Cs2ebjs/exec";
+window.SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyFJHftNDbxKdagVzclFjpSgDCvoHp527RbR1EZgfI8HTFXFRN4C5ccP8E5KJuEFPc/exec";
 
 
         let currentTab = 'transaksi';
@@ -862,6 +862,85 @@ function renderLaporanKas() {
         </div>
     `;
 }
+
+async function processPembelianExcel(file) {
+    if (!file) return;
+    
+    const btn = document.querySelector("button[onclick*='pembelianInput']");
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Mengelompokkan...';
+    btn.disabled = true;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const rawData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+
+            // --- PROSES GROUPING ---
+            const grouped = rawData.reduce((acc, row) => {
+                const key = row['Keterangan'];
+                if (!acc[key]) {
+                    acc[key] = {
+                        waktu: row['Waktu'],
+                        keterangan: key,
+                        kategori: 'Pembelian',
+                        masuk: 0,
+                        keluar: 0,
+                        metode: row['Metode'] || 'Cash',
+                        items: []
+                    };
+                }
+                
+                const harga = parseFloat(row['Harga Produk']) || 0;
+                const qty = parseFloat(row['Qty']) || 0;
+                const totalRow = parseFloat(row['Total Harga Produk']) || (harga * qty);
+
+                acc[key].keluar += totalRow;
+                acc[key].items.push({
+                    nama: row['Nama Produk'],
+                    qty: qty,
+                    harga: harga
+                });
+                
+                return acc;
+            }, {});
+
+            // Konversi objek grouped kembali ke array untuk dikirim
+            const finalData = Object.values(grouped).map(group => ({
+                ...group,
+                detail_json: JSON.stringify(group.items) // Detail semua produk di keterangan yang sama
+            }));
+
+            if (finalData.length === 0) {
+                alert("Data kosong.");
+            } else {
+                await fetch(window.SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'insertPembelianData',
+                        data: finalData
+                    })
+                });
+
+                alert(`Berhasil mengelompokkan menjadi ${finalData.length} transaksi.`);
+                fetchAllData(); 
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Gagal memproses file. Pastikan kolom sesuai.");
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+
         
 // Fungsi Reset jika ingin kembali ke pengaturan awal
 function resetLRFilter() {
