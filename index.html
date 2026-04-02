@@ -277,6 +277,11 @@ window.SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxl4dKGb4shZfqkVg8K
     const filterContainer = document.querySelector('.bg-white.p-4.rounded-xl.card-shadow');
     const tableContainer = document.querySelector('.bg-white.rounded-xl.card-shadow.overflow-hidden');
     const mainDashboardElements = [statsGrid, filterContainer, tableContainer];
+    
+    // Identifikasi pembungkus filter tanggal (Hari ini, Bulan ini, Rentang Tanggal)
+    // Berdasarkan struktur umum, kita mencari elemen flex yang membungkus input dateStart
+    const dateFilters = document.getElementById('dateStart')?.closest('.flex.flex-wrap') || 
+                        document.getElementById('dateStart')?.parentElement;
 
     // 3. Sembunyikan SEMUA halaman laporan khusus (page-content)
     document.querySelectorAll('.page-content').forEach(p => p.classList.add('hidden'));
@@ -308,7 +313,14 @@ window.SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxl4dKGb4shZfqkVg8K
         // --- MODE DATA (Transaksi, Piutang, Stok) ---
         mainDashboardElements.forEach(el => el?.classList.remove('hidden'));
 
-        // KHUSUS TAB STOK: Ubah struktur statsGrid menjadi Total Nilai Aset
+        // HILANGKAN FILTER TANGGAL PADA TAB PIUTANG DAN STOK
+        if (tab === 'piutang' || tab === 'stok') {
+            if (dateFilters) dateFilters.classList.add('hidden');
+        } else {
+            if (dateFilters) dateFilters.classList.remove('hidden');
+        }
+
+        // KHUSUS TAB STOK: Tampilkan Total Nilai Aset
         if (tab === 'stok') {
             statsGrid.innerHTML = `
                 <div class="col-span-full bg-white p-6 rounded-2xl shadow-sm border border-blue-100 flex items-center justify-between">
@@ -326,15 +338,15 @@ window.SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxl4dKGb4shZfqkVg8K
             statsGrid.innerHTML = `
                 <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
                     <p class="text-[10px] font-bold text-slate-400 uppercase">Pendapatan</p>
-                    <h3 id="totalIncome" class="text-sm font-bold text-slate-800">Rp 0</h3>
+                    <h3 id="totalMasuk" class="text-sm font-bold text-slate-800">Rp 0</h3>
                 </div>
                 <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
                     <p class="text-[10px] font-bold text-slate-400 uppercase">Pengeluaran</p>
-                    <h3 id="totalExpense" class="text-sm font-bold text-slate-800">Rp 0</h3>
+                    <h3 id="totalKeluar" class="text-sm font-bold text-slate-800">Rp 0</h3>
                 </div>
                 <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
                     <p class="text-[10px] font-bold text-slate-400 uppercase">Laba Kotor</p>
-                    <h3 id="totalProfit" class="text-sm font-bold text-slate-800">Rp 0</h3>
+                    <h3 id="totalSaldo" class="text-sm font-bold text-slate-800">Rp 0</h3>
                 </div>
                 <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
                     <p class="text-[10px] font-bold text-slate-400 uppercase">Sisa Piutang</p>
