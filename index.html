@@ -290,7 +290,6 @@ window.SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxl4dKGb4shZfqkVg8K
     // 5. Logika Percabangan Tampilan
     if (tab === 'kas' || tab === 'labarugi') {
         // --- MODE LAPORAN ---
-        // Sembunyikan elemen dashboard utama
         mainDashboardElements.forEach(el => el?.classList.add('hidden'));
         
         const targetPage = document.getElementById(tab + 'Page');
@@ -307,10 +306,43 @@ window.SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxl4dKGb4shZfqkVg8K
         }
     } else {
         // --- MODE DATA (Transaksi, Piutang, Stok) ---
-        // Tampilkan KEMBALI elemen dashboard utama
         mainDashboardElements.forEach(el => el?.classList.remove('hidden'));
+
+        // KHUSUS TAB STOK: Ubah struktur statsGrid menjadi Total Nilai Aset
+        if (tab === 'stok') {
+            statsGrid.innerHTML = `
+                <div class="col-span-full bg-white p-6 rounded-2xl shadow-sm border border-blue-100 flex items-center justify-between">
+                    <div>
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Nilai Aset Stok</p>
+                        <h3 id="totalAsetStok" class="text-2xl font-black text-blue-600">Rp 0</h3>
+                    </div>
+                    <div class="w-12 h-12 bg-blue-50 text-blue-500 rounded-2xl flex items-center justify-center text-xl">
+                        <i class="fas fa-boxes-stacked"></i>
+                    </div>
+                </div>
+            `;
+        } else {
+            // KEMBALIKAN KE STRUKTUR 4 KARTU (Untuk Transaksi & Piutang)
+            statsGrid.innerHTML = `
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase">Pendapatan</p>
+                    <h3 id="totalIncome" class="text-sm font-bold text-slate-800">Rp 0</h3>
+                </div>
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase">Pengeluaran</p>
+                    <h3 id="totalExpense" class="text-sm font-bold text-slate-800">Rp 0</h3>
+                </div>
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase">Laba Kotor</p>
+                    <h3 id="totalProfit" class="text-sm font-bold text-slate-800">Rp 0</h3>
+                </div>
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase">Sisa Piutang</p>
+                    <h3 id="totalPiutang" class="text-sm font-bold text-slate-800">Rp 0</h3>
+                </div>
+            `;
+        }
         
-        // Render Header Tabel & Isi Data
         renderContent(); 
     }
 
@@ -321,6 +353,7 @@ window.SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxl4dKGb4shZfqkVg8K
         activeBtn.classList.remove('text-slate-500');
     }
 }
+        
         async function fetchAllData() {
     const btn = document.getElementById('refreshBtn');
     const loader = document.getElementById('loadingOverlay');
@@ -467,18 +500,40 @@ async function processShopeeExcel(file) {
 }
 
 
-       function calculateStats() {
-
+      function calculateStats() {
     const statsGrid = document.getElementById('statsGrid');
 
-    // 2. Jika sedang di tab stok, sembunyikan grid dan hentikan fungsi
+    // --- LOGIKA KHUSUS TAB STOK ---
     if (currentTab === 'stok') {
-        statsGrid.classList.add('hidden');
-        return; 
-    } else {
         statsGrid.classList.remove('hidden');
-    }
-           
+        
+        let totalAsetStok = 0;
+        const query = document.getElementById('searchInput').value.toLowerCase();
+
+        // Hitung total aset berdasarkan data yang terlihat (terfilter)
+        db.stok.forEach(item => {
+            const nama = (item["Nama Barang"] || "").toLowerCase();
+            const pass = nama.includes(query);
+
+            if (pass) {
+                const sisa = parseFloat(item["Sisa Stok"]) || 0;
+                const harga = parseFloat(item["Harga Beli Terbaru"]) || 0;
+                // Jika stok minus, nilai aset dianggap 0 (sesuai instruksi sebelumnya)
+                totalAsetStok += (Math.max(0, sisa) * harga);
+            }
+        });
+
+        // Update UI khusus kartu Total Aset
+        const elAset = document.getElementById('totalAsetStok');
+        if (elAset) {
+            elAset.innerText = formatIDR(totalAsetStok);
+        }
+        return; // Berhenti di sini jika di tab stok
+    } 
+
+    // --- LOGIKA TAB TRANSAKSI / PIUTANG ---
+    statsGrid.classList.remove('hidden');
+            
     let masuk = 0, keluar = 0, piutangTerfilter = 0, piutangTotalSemua = 0, totalRefund = 0;
     
     const excludedCategories = ["transfer saldo", "saldo awal"];
@@ -520,19 +575,17 @@ async function processShopeeExcel(file) {
         }
     });
 
-    // 2. HITUNG PIUTANG (DUA LOGIKA)
+    // 2. HITUNG PIUTANG (DENGAN FILTER)
     db.piutang.forEach(r => {
         const sisa = parseFloat(r["Sisa Piutang"]) || 0;
         const status = (r["Status"] || "").toLowerCase();
         
         if (sisa > 0 && status !== 'lunas') {
-            // A. LOGIKA UNTUK KOTAK SISA PIUTANG (TANPA FILTER)
             piutangTotalSemua += sisa;
 
-            // B. LOGIKA UNTUK TOTAL PENDAPATAN (DENGAN FILTER)
             let passPiutang = Object.values(r).some(v => String(v).toLowerCase().includes(query));
             if (passPiutang && (start || end)) {
-                const dateStr = r["Waktu"]; // Pastikan ada kolom "Waktu" di tab Piutang
+                const dateStr = r["Waktu"];
                 if(dateStr) {
                     const itemTime = new Date(dateStr).getTime();
                     if(!isNaN(itemTime)) {
@@ -548,25 +601,22 @@ async function processShopeeExcel(file) {
     });
 
     // --- KALKULASI AKHIR ---
-    
-    // Pendapatan = (Uang Masuk Terfilter - Refund Terfilter) + Piutang Terfilter
     const pendapatanFinal = (masuk - totalRefund) + piutangTerfilter;
-    
-    // Laba Kotor = Uang Masuk Terfilter - (Keluar Terfilter + Refund Terfilter)
     const labaKotor = masuk - (keluar + totalRefund);
 
-    // Update UI Dashboard
-    document.getElementById('totalMasuk').innerText = formatIDR(pendapatanFinal);
-    document.getElementById('totalKeluar').innerText = formatIDR(keluar); 
-    document.getElementById('totalSaldo').innerText = formatIDR(labaKotor); 
+    // Update UI Dashboard (Pastikan ID elemen sesuai dengan HTML statsGrid baru)
+    if (document.getElementById('totalMasuk')) document.getElementById('totalMasuk').innerText = formatIDR(pendapatanFinal);
+    if (document.getElementById('totalKeluar')) document.getElementById('totalKeluar').innerText = formatIDR(keluar); 
     
-    // Tampilan Sisa Piutang menggunakan total keseluruhan (tanpa filter)
-    document.getElementById('totalPiutang').innerText = formatIDR(piutangTotalSemua);
-
     const saldoEl = document.getElementById('totalSaldo');
-    saldoEl.className = labaKotor < 0 
-        ? "text-xs md:text-lg font-bold text-red-600 truncate" 
-        : "text-xs md:text-lg font-bold text-blue-700 truncate";
+    if (saldoEl) {
+        saldoEl.innerText = formatIDR(labaKotor); 
+        saldoEl.className = labaKotor < 0 
+            ? "text-xs md:text-lg font-bold text-red-600 truncate" 
+            : "text-xs md:text-lg font-bold text-blue-700 truncate";
+    }
+    
+    if (document.getElementById('totalPiutang')) document.getElementById('totalPiutang').innerText = formatIDR(piutangTotalSemua);
 }
         
 function renderLabaRugi() {
