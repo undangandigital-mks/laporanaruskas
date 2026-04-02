@@ -277,11 +277,12 @@ window.SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxl4dKGb4shZfqkVg8K
     const filterContainer = document.querySelector('.bg-white.p-4.rounded-xl.card-shadow');
     const tableContainer = document.querySelector('.bg-white.rounded-xl.card-shadow.overflow-hidden');
     const mainDashboardElements = [statsGrid, filterContainer, tableContainer];
-    
-    // Identifikasi pembungkus filter tanggal (Hari ini, Bulan ini, Rentang Tanggal)
-    // Berdasarkan struktur umum, kita mencari elemen flex yang membungkus input dateStart
-    const dateFilters = document.getElementById('dateStart')?.closest('.flex.flex-wrap') || 
-                        document.getElementById('dateStart')?.parentElement;
+
+    // Target elemen filter waktu secara spesifik
+    const dateQuickFilters = document.querySelector('.flex.gap-2.mb-4'); // Tombol Hari Ini, Bulan Ini, Semua
+    const dateInputSection = document.getElementById('dateStart')?.closest('.grid.grid-cols-2'); // Input Tanggal
+    // Target tombol Reset Kalender berdasarkan teks atau class jika ID tidak ada
+    const btnResetRange = document.querySelector('button[onclick="resetDateRange()"]')?.parentElement; 
 
     // 3. Sembunyikan SEMUA halaman laporan khusus (page-content)
     document.querySelectorAll('.page-content').forEach(p => p.classList.add('hidden'));
@@ -296,7 +297,6 @@ window.SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxl4dKGb4shZfqkVg8K
     if (tab === 'kas' || tab === 'labarugi') {
         // --- MODE LAPORAN ---
         mainDashboardElements.forEach(el => el?.classList.add('hidden'));
-        
         const targetPage = document.getElementById(tab + 'Page');
         if (targetPage) targetPage.classList.remove('hidden');
 
@@ -313,11 +313,20 @@ window.SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxl4dKGb4shZfqkVg8K
         // --- MODE DATA (Transaksi, Piutang, Stok) ---
         mainDashboardElements.forEach(el => el?.classList.remove('hidden'));
 
-        // HILANGKAN FILTER TANGGAL PADA TAB PIUTANG DAN STOK
-        if (tab === 'piutang' || tab === 'stok') {
-            if (dateFilters) dateFilters.classList.add('hidden');
+        // LOGIKA AGRESIF: HILANGKAN FILTER TANGGAL & RESET KALENDER
+        if (tab === 'stok' || tab === 'piutang') {
+            if (dateQuickFilters) dateQuickFilters.classList.add('hidden');
+            if (dateInputSection) dateInputSection.classList.add('hidden');
+            if (btnResetRange) btnResetRange.classList.add('hidden');
+            
+            // Penting: Kosongkan nilai filter agar tidak terhitung di logic calculateStats
+            document.getElementById('dateStart').value = "";
+            document.getElementById('dateEnd').value = "";
         } else {
-            if (dateFilters) dateFilters.classList.remove('hidden');
+            // Tampilkan kembali jika di tab Transaksi/Semua
+            if (dateQuickFilters) dateQuickFilters.classList.remove('hidden');
+            if (dateInputSection) dateInputSection.classList.remove('hidden');
+            if (btnResetRange) btnResetRange.classList.remove('hidden');
         }
 
         // KHUSUS TAB STOK: Tampilkan Total Nilai Aset
@@ -334,7 +343,7 @@ window.SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxl4dKGb4shZfqkVg8K
                 </div>
             `;
         } else {
-            // KEMBALIKAN KE STRUKTUR 4 KARTU (Untuk Transaksi & Piutang)
+            // STRUKTUR 4 KARTU UNTUK TRANSAKSI/PIUTANG
             statsGrid.innerHTML = `
                 <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
                     <p class="text-[10px] font-bold text-slate-400 uppercase">Pendapatan</p>
