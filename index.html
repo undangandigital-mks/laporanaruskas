@@ -70,28 +70,37 @@
     </div>
 
     <div class="flex items-center gap-2 md:gap-3">
-        <input type="file" id="shopeeInput" class="hidden" accept=".xlsx" onchange="processShopeeExcel(this.files[0])">
-        <button onclick="document.getElementById('shopeeInput').click()" 
-                class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all flex items-center gap-2 shadow-md active:scale-95">
+    <input type="file" id="shopeeInput" class="hidden" accept=".xlsx">
+
+    <div class="relative group">
+        <button class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all flex items-center gap-2 shadow-md active:scale-95">
             <i class="fas fa-shopping-bag"></i> 
             <span class="hidden md:inline">Import Shopee</span>
             <span class="md:hidden">Shopee</span>
+            <i class="fas fa-chevron-down text-[10px]"></i>
         </button>
-
-        <input type="file" id="pembelianInput" class="hidden" accept=".xlsx" onchange="processPembelianExcel(this.files[0])">
-
-<button onclick="document.getElementById('pembelianInput').click()" 
-        class="bg-red-500 hover:bg-red-600 text-white px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all flex items-center gap-2 shadow-md active:scale-95">
-    <i class="fas fa-cart-plus"></i> 
-    <span class="hidden md:inline">Import Pembelian</span>
-    <span class="md:hidden">Beli</span>
-</button>
-
-        <button onclick="fetchAllData()" id="refreshBtn" 
-                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 shadow-md active:scale-95 text-xs md:text-sm text-nowrap">
-            <i class="fas fa-sync-alt"></i> Sinkronisasi
-        </button>
+        
+        <div class="absolute left-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 hidden group-hover:block hover:block z-50 overflow-hidden">
+            <button onclick="triggerShopeeImport('insertShopeeData')" class="w-full text-left px-4 py-3 text-xs font-bold text-slate-600 hover:bg-orange-50 hover:text-orange-600 transition-colors border-b border-slate-50">
+                <i class="fas fa-store mr-2"></i> Akun 1 (Muflih Print)
+            </button>
+            <button onclick="triggerShopeeImport('insertShopeeData2')" class="w-full text-left px-4 py-3 text-xs font-bold text-slate-600 hover:bg-orange-50 hover:text-orange-600 transition-colors">
+                <i class="fas fa-store mr-2"></i> Akun 2 (Vi Printing)
+            </button>
+        </div>
     </div>
+
+    <input type="file" id="pembelianInput" class="hidden" accept=".xlsx" onchange="processPembelianExcel(this.files[0])">
+    <button onclick="document.getElementById('pembelianInput').click()" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all flex items-center gap-2 shadow-md active:scale-95">
+        <i class="fas fa-cart-plus"></i> 
+        <span class="hidden md:inline">Import Pembelian</span>
+        <span class="md:hidden">Beli</span>
+    </button>
+
+    <button onclick="fetchAllData()" id="refreshBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 shadow-md active:scale-95 text-xs md:text-sm text-nowrap">
+        <i class="fas fa-sync-alt"></i> Sinkronisasi
+    </button>
+</div>
 
             
 </header>
@@ -252,7 +261,7 @@
             stok: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRvAQXltAVp8lnrXXVVPJr1hYEi8cAJrqz182qT23eaiI8t-MoBrEtE7bAAJqKEyKKTig4hpA9DNuQB/pub?gid=1595956432&single=true&output=csv"
         };
         // 1. Definisikan URL Apps Script di tingkat global (di awal script)
-window.SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxl4dKGb4shZfqkVg8KWi_LTkV-TOHPY_uQcVoKO_NiccMIu7p6AwPK6yFNtyVvI5c/exec";
+window.SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwTczYtdSQojBRttwT-aC7_WQ6XgtigomgB2A3ETMXr-S5CRsU47EAhLaYfeinsT74/exec";
 
 
         let currentTab = 'transaksi';
@@ -261,6 +270,36 @@ window.SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxl4dKGb4shZfqkVg8K
         const rowsPerPage = 50;
         let filteredData = [];
         let dateFilterMode = 'all';
+
+        // Variabel global sementara untuk menyimpan target akun
+let currentShopeeAction = 'insertShopeeData';
+
+function triggerShopeeImport(action) {
+    currentShopeeAction = action; // Set target akun
+    document.getElementById('shopeeInput').click(); // Buka file picker
+}
+
+// Update fungsi onchange pada input shopeeInput di HTML tadi menjadi:
+document.getElementById('shopeeInput').onchange = function() {
+    if (this.files && this.files[0]) {
+        processShopeeExcel(this.files[0], currentShopeeAction);
+    }
+};
+
+// Modifikasi fungsi processShopeeExcel Anda agar menerima parameter action
+async function processShopeeExcel(file, actionTarget) {
+    // ... (Logika pembacaan Excel Anda menggunakan XLSX.js) ...
+    
+    // Saat bagian fetch/kirim data ke Apps Script:
+    // Pastikan menggunakan variabel actionTarget
+    const payload = {
+        action: actionTarget, // Akan berisi 'insertShopeeData' atau 'insertShopeeData2'
+        data: hasilDataExcel
+    };
+    
+    // Kirim ke SCRIPT_URL menggunakan method POST
+    // ...
+}
 
         function formatIDR(val) {
             const num = parseFloat(val) || 0;
