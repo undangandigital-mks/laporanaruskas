@@ -900,7 +900,7 @@ container.innerHTML = `
     <td colspan="2" class="p-3 sm:p-4 text-[10px] sm:text-xs font-black text-blue-700 uppercase tracking-wider">B. Pendapatan (Offline)</td>
 </tr>
 <tr class="border-b border-slate-50">
-    <td class="p-3 sm:p-4 text-xs sm:text-sm text-slate-700 pl-6 sm:pl-8 font-medium">Penjualan Toko & Proyek</td>
+    <td class="p-3 sm:p-4 text-xs sm:text-sm text-slate-700 pl-6 sm:pl-8 font-medium">Penjualan</td>
     <td class="p-3 sm:p-4 text-right text-xs sm:text-sm font-bold text-slate-800">${formatIDR(omsetBruto)}</td>
 </tr>
 <tr class="border-b border-slate-50">
@@ -908,7 +908,7 @@ container.innerHTML = `
     <td class="p-2 sm:p-4 text-right text-xs sm:text-sm font-semibold text-red-500">-${formatIDR(data.sisaPiutang)}</td>
 </tr>
 <tr class="bg-blue-600">
-    <td class="p-3 sm:p-4 text-[10px] text-white uppercase pl-6 sm:pl-8 text-right font-bold">Total Pendapatan (B)</td>
+    <td class="p-3 sm:p-4 text-[10px] text-white uppercase pl-6 sm:pl-8 text-right font-bold">Total (B)</td>
     <td class="p-3 sm:p-4 text-right text-sm sm:text-base font-black text-white">${formatIDR(totalB)}</td>
 </tr>
 
@@ -924,15 +924,15 @@ container.innerHTML = `
     <td class="p-3 text-right font-bold text-orange-600">+${formatIDR(data.totalTarikShopee2)}</td>
 </tr>
 <tr class="border-b border-orange-50/50">
-    <td class="p-2 pl-10 text-[10px] text-slate-400 italic">Saldo Shopee 1 (Belum Tarik)</td>
+    <td class="p-2 pl-10 text-[10px] text-slate-400 italic">Saldo Shopee 1</td>
     <td class="p-2 text-right text-[11px] font-medium text-orange-400">${formatIDR(data.saldoShopee1)}</td>
 </tr>
 <tr class="border-b border-orange-50/50">
-    <td class="p-2 pl-10 text-[10px] text-slate-400 italic">Saldo Shopee 2 (Belum Tarik)</td>
+    <td class="p-2 pl-10 text-[10px] text-slate-400 italic">Saldo Shopee 2</td>
     <td class="p-2 text-right text-[11px] font-medium text-orange-400">${formatIDR(data.saldoShopee2)}</td>
 </tr>
 <tr class="bg-orange-500">
-    <td class="p-3 sm:p-4 text-[10px] text-white uppercase pl-8 text-right font-bold">Total Nilai Shopee (C)</td>
+    <td class="p-3 sm:p-4 text-[10px] text-white uppercase pl-8 text-right font-bold">Total (C)</td>
     <td class="p-3 sm:p-4 text-right text-sm sm:text-base font-black text-white">${formatIDR(totalC)}</td>
 </tr>
 
@@ -948,7 +948,7 @@ container.innerHTML = `
     <td class="p-3 sm:p-4 text-right text-xs sm:text-sm font-bold text-red-600">-${formatIDR(data.pembelian)}</td>
 </tr>
 <tr class="bg-red-600">
-    <td class="p-3 sm:p-4 text-[10px] text-white uppercase pl-6 sm:pl-8 text-right font-bold">Total Pengeluaran (D)</td>
+    <td class="p-3 sm:p-4 text-[10px] text-white uppercase pl-6 sm:pl-8 text-right font-bold">Total (D)</td>
     <td class="p-3 sm:p-4 text-right text-sm sm:text-base font-black text-white">${formatIDR(totalD)}</td>
 </tr>
                     </tbody>
