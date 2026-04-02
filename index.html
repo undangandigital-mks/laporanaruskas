@@ -592,40 +592,34 @@ function renderLabaRugi() {
     console.log("Data Shopee di DB:", db.shopee_income);
 console.log("Filter Range:", new Date(startTime), "sampai", new Date(endTime));
   // 4. LOGIKA BARU: HITUNG DATA SHOPEE
+// 4. LOGIKA BARU: HITUNG DATA SHOPEE
 if (db.shopee_income && Array.isArray(db.shopee_income)) {
-    // Fungsi pembantu untuk membersihkan angka (diletakkan di dalam loop agar aman)
     const parseAmount = (val) => {
         if (typeof val === 'number') return val;
         if (!val) return 0;
-        // Menghapus karakter non-numerik kecuali titik dan minus
         return parseFloat(String(val).replace(/[^\d.-]/g, '')) || 0;
     };
 
     db.shopee_income.forEach(s => {
-        const rawDate = s.tgl_cair || s['Tanggal Dana Dilepaskan'];
+        // SESUAIKAN DENGAN CONSOLE: 'Tgl Cair'
+        const rawDate = s['Tgl Cair'] || s.tgl_cair; 
         if (!rawDate) return;
 
-        // Normalisasi Tanggal: "2026-03-25T16:00:00.000Z" -> "2026-03-25"
+        // Normalisasi Tanggal ISO ke Lokal (YYYY-MM-DD)
         const cleanDateStr = String(rawDate).substring(0, 10);
         const sDate = new Date(cleanDateStr).setHours(0, 0, 0, 0);
 
-        // Normalisasi Filter (Awal hari dan Akhir hari)
+        // Filter Tanggal
         const filterStart = startInput ? new Date(startInput).setHours(0, 0, 0, 0) : -Infinity;
         const filterEnd = endInput ? new Date(endInput).setHours(23, 59, 59, 999) : Infinity;
 
         if (sDate >= filterStart && sDate <= filterEnd) {
-            // Mapping nama kolom sesuai database Sheets atau hasil import
-            const bruto = parseAmount(s.omzet_bruto || s['Harga Asli Produk']);
-            
-            // Perhitungan potongan: Jika total_potongan kosong, hitung selisih Bruto dan Netto
-            let potongan = parseAmount(s.total_potongan);
-            if (potongan === 0) {
-                const netto = parseAmount(s.net_income || s['Total Penghasilan']);
-                potongan = bruto - netto;
-            }
+            // SESUAIKAN DENGAN CONSOLE: 'Bruto' dan 'Potongan'
+            const bruto = parseAmount(s['Bruto'] || s.omzet_bruto);
+            const potongan = parseAmount(s['Potongan'] || s.total_potongan);
 
             omzetShopee += bruto;
-            potonganShopee += (potongan > 0 ? potongan : 0);
+            potonganShopee += potongan;
         }
     });
 }
