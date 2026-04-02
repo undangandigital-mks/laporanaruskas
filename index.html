@@ -270,11 +270,23 @@ window.SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwTczYtdSQojBRttwT-
         let filteredData = [];
         let dateFilterMode = 'all';
 
-     // Modifikasi fungsi processShopeeExcel Anda agar menerima parameter action
-async function processShopeeExcel(file, actionTarget = 'insertShopeeData') {
+ let currentShopeeAction = 'insertShopeeData';
+
+function triggerShopeeImport(action) {
+    currentShopeeAction = action;
+    document.getElementById('shopeeInput').click();
+}
+
+// Hubungkan input file dengan event listener
+document.getElementById('shopeeInput').onchange = function() {
+    if (this.files && this.files[0]) {
+        processShopeeExcel(this.files[0], currentShopeeAction);
+        this.value = ''; 
+    }
+};
+
+async function processShopeeExcel(file, actionTarget) {
     if (!file) return;
-    
-    // Sesuaikan selector agar bisa menangani tombol dropdown
     const btn = document.querySelector(".bg-orange-500");
     const originalText = btn.innerHTML;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Memproses...';
@@ -285,77 +297,33 @@ async function processShopeeExcel(file, actionTarget = 'insertShopeeData') {
         try {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
-            
-            // Nama sheet laporan penghasilan shopee biasanya "Income"
-            const sheetName = "Income";
-            const worksheet = workbook.Sheets[sheetName];
-            
-            if (!worksheet) {
-                alert("Gagal: Sheet bernama 'Income' tidak ditemukan.");
-                return;
-            }
+            const worksheet = workbook.Sheets["Income"];
+            if (!worksheet) throw new Error("Sheet 'Income' tidak ditemukan.");
 
-            // Memulai pembacaan dari baris ke-6 (range: 5)
             const rawData = XLSX.utils.sheet_to_json(worksheet, { range: 5 });
-            const shopeeDataToSave = [];
-
-            const parseVal = (val) => {
-                if (typeof val === 'number') return val;
-                if (!val || val === "-") return 0;
-                return parseFloat(String(val).replace(/[^\d.-]/g, '')) || 0;
-            };
-
-            rawData.forEach(row => {
-                if (row['No. Pesanan']) {
-                    const hargaAsli = parseVal(row['Harga Asli Produk']);
-                    const returKePembeli = parseVal(row['Jumlah Pengembalian Dana ke Pembeli']);
-                    const diskonProduk = parseVal(row['Total Diskon Produk']);
-
-                    // Hitung Omzet Bruto Bersih
-                    const brutoBersih = hargaAsli - Math.abs(returKePembeli) - Math.abs(diskonProduk);
-                    
-                    // Hitung total semua potongan
-                    const admin = parseVal(row['Biaya Administrasi']);
-                    const layanan = parseVal(row['Biaya Layanan']);
-                    const transaksi = parseVal(row['Biaya Transaksi']);
-                    const kampanye = parseVal(row['Biaya Kampanye']);
-                    const proses = parseVal(row['Biaya Proses Pesanan']);
-                    
-                    const totalPotongan = Math.abs(admin + layanan + transaksi + kampanye + proses);
-                    const netIncome = parseVal(row['Total Penghasilan']);
-
-                    shopeeDataToSave.push({
-                        tgl_cair: row['Tanggal Dana Dilepaskan'] || '',
-                        no_pesanan: row['No. Pesanan'],
-                        sku: row['Username (Pembeli)'] || '', // Menggunakan kolom pembeli jika SKU tidak ada
-                        omzet_bruto: brutoBersih,
-                        total_potongan: totalPotongan,
-                        net_income: netIncome
-                    });
-                }
+            const shopeeDataToSave = rawData.filter(row => row['No. Pesanan']).map(row => {
+                const parseVal = (v) => typeof v === 'number' ? v : (parseFloat(String(v).replace(/[^\d.-]/g, '')) || 0);
+                return {
+                    tgl_cair: row['Tanggal Dana Dilepaskan'] || '',
+                    no_pesanan: row['No. Pesanan'],
+                    sku: row['Username (Pembeli)'] || '',
+                    omzet_bruto: parseVal(row['Harga Asli Produk']) - Math.abs(parseVal(row['Jumlah Pengembalian Dana ke Pembeli'])) - Math.abs(parseVal(row['Total Diskon Produk'])),
+                    total_potongan: Math.abs(parseVal(row['Biaya Administrasi']) + parseVal(row['Biaya Layanan']) + parseVal(row['Biaya Transaksi'])),
+                    net_income: parseVal(row['Total Penghasilan'])
+                };
             });
 
-            if (shopeeDataToSave.length === 0) {
-                alert("Data kosong atau format header salah.");
-            } else {
-                // KIRIM KE BACKEND DENGAN ACTION DINAMIS
-                await fetch(window.SCRIPT_URL, {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        action: actionTarget, // 'insertShopeeData' atau 'insertShopeeData2'
-                        data: shopeeDataToSave
-                    })
-                });
+            await fetch(window.SCRIPT_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ action: actionTarget, data: shopeeDataToSave })
+            });
 
-                const namaAkun = actionTarget === 'insertShopeeData' ? "Akun 1 (Muflih Print)" : "Akun 2 (Vi Printing)";
-                alert(`Berhasil! ${shopeeDataToSave.length} data untuk ${namaAkun} telah diimport.`);
-                
-                if (typeof fetchAllData === "function") fetchAllData();
-            }
-
-        } catch (error) {
-            console.error("Error Detail:", error);
-            alert("Terjadi kesalahan teknis saat membaca file.");
+            const namaAkun = actionTarget === 'insertShopeeData' ? "Akun 1" : "Akun 2";
+            alert(`Berhasil mengimpor data ${namaAkun}!`);
+            if (typeof fetchAllData === "function") fetchAllData();
+        } catch (err) {
+            alert("Error: " + err.message);
         } finally {
             btn.innerHTML = originalText;
             btn.disabled = false;
@@ -363,22 +331,7 @@ async function processShopeeExcel(file, actionTarget = 'insertShopeeData') {
     };
     reader.readAsArrayBuffer(file);
 }
-
-// Tambahkan fungsi trigger ini agar sinkron dengan dropdown HTML sebelumnya
-let currentShopeeAction = 'insertShopeeData';
-function triggerShopeeImport(action) {
-    currentShopeeAction = action;
-    document.getElementById('shopeeInput').click();
-}
-
-// Event listener untuk input file
-document.getElementById('shopeeInput').onchange = function() {
-    if (this.files && this.files[0]) {
-        processShopeeExcel(this.files[0], currentShopeeAction);
-        this.value = ''; // Reset input agar bisa upload file yang sama jika perlu
-    }
-};
-
+        
         function formatIDR(val) {
             const num = parseFloat(val) || 0;
             return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
