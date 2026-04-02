@@ -240,6 +240,9 @@
             piutang: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRvAQXltAVp8lnrXXVVPJr1hYEi8cAJrqz182qT23eaiI8t-MoBrEtE7bAAJqKEyKKTig4hpA9DNuQB/pub?gid=1961183383&single=true&output=csv",
             stok: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRvAQXltAVp8lnrXXVVPJr1hYEi8cAJrqz182qT23eaiI8t-MoBrEtE7bAAJqKEyKKTig4hpA9DNuQB/pub?gid=1595956432&single=true&output=csv"
         };
+        // 1. Definisikan URL Apps Script di tingkat global (di awal script)
+window.SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz7HXuVxSPuSDOh0ZSAwLoMLE8_nT0HTkC7jyE61ev8hM7ZSMZRcHpTEOsp7a3A9Ug/exec";
+
 
         let currentTab = 'transaksi';
         let db = { transaksi: [], piutang: [], stok: [] };
@@ -308,29 +311,38 @@
     }
 }
         async function fetchAllData() {
-            const btn = document.getElementById('refreshBtn');
-            const loader = document.getElementById('loadingOverlay');
-            btn.disabled = true;
-            loader.classList.remove('hidden');
+    const btn = document.getElementById('refreshBtn');
+    const loader = document.getElementById('loadingOverlay');
+    btn.disabled = true;
+    loader.classList.remove('hidden');
 
-            try {
-                const results = await Promise.all([
-                    fetchCSV(URLS.transaksi),
-                    fetchCSV(URLS.piutang),
-                    fetchCSV(URLS.stok)
-                ]);
-                db.transaksi = results[0];
-                db.piutang = results[1];
-                db.stok = results[2];
-                
-                setDateFilter('all');
-            } catch (e) {
-                console.error("Gagal mengambil data:", e);
-            } finally {
-                btn.disabled = false;
-                loader.classList.add('hidden');
-            }
-        }
+    try {
+        // 1. Ambil data CSV Publik (Transaksi, Piutang, Stok)
+        const results = await Promise.all([
+            fetchCSV(URLS.transaksi),
+            fetchCSV(URLS.piutang),
+            fetchCSV(URLS.stok)
+        ]);
+        
+        db.transaksi = results[0];
+        db.piutang = results[1];
+        db.stok = results[2];
+
+        // 2. AMBIL DATA SHOPEE DARI APPS SCRIPT
+        const shopeeRes = await fetch(`${window.SCRIPT_URL}?action=getShopeeData`);
+        const shopeeJson = await shopeeRes.json();
+        db.shopee_income = shopeeJson.data || [];
+
+        setDateFilter('all');
+    } catch (e) {
+        console.error("Gagal mengambil data:", e);
+        // Tetap jalankan render meskipun shopee gagal agar data lain muncul
+        setDateFilter('all'); 
+    } finally {
+        btn.disabled = false;
+        loader.classList.add('hidden');
+    }
+}
 
         function fetchCSV(url) {
             return new Promise((resolve, reject) => {
@@ -345,8 +357,6 @@
         }
 
 
-// 1. Definisikan URL Apps Script di tingkat global (di awal script)
-window.SCRIPT_URL = "https://script.google.com/macros/s/AKfycbydSePs_pWAULQIaPZ8z0wEpaBaPnF2G4rTSGGeyfii3vao5ZC8V6LTT3wuGWKDPAk/exec";
 
 async function processShopeeExcel(file) {
     if (!file) return;
@@ -579,15 +589,35 @@ function renderLabaRugi() {
     });
 
     // 4. LOGIKA BARU: HITUNG DATA SHOPEE
-    if (db.shopee_income) {
-        db.shopee_income.forEach(s => {
-            const sDate = new Date(s.tgl_cair).getTime();
-            if (!isNaN(sDate) && sDate >= startTime && sDate <= endTime) {
-                omzetShopee += parseFloat(s.omzet_bruto) || 0;
-                potonganShopee += parseFloat(s.total_potongan) || 0;
-            }
-        });
-    }
+    console.log("Data Shopee di DB:", db.shopee_income);
+console.log("Filter Range:", new Date(startTime), "sampai", new Date(endTime));
+   if (db.shopee_income && Array.isArray(db.shopee_income)) {
+    db.shopee_income.forEach(s => {
+        // Gunakan nilai mentah atau fallback ke nama kolom asli Shopee jika tgl_cair kosong
+        const rawDate = s.tgl_cair || s['Tanggal Dana Dilepaskan'];
+        if (!rawDate) return;
+
+        const sDate = new Date(rawDate).getTime();
+        
+        // Pastikan startTime dan endTime sudah diset jam 00:00 dan 23:59
+        if (!isNaN(sDate) && sDate >= startTime && sDate <= endTime) {
+            // Bersihkan karakter non-numerik jika ada (seperti Rp atau titik ribuan)
+            const parseAmount = (val) => {
+                if (typeof val === 'number') return val;
+                if (!val) return 0;
+                return parseFloat(String(val).replace(/[^\d.-]/g, '')) || 0;
+            };
+
+            const bruto = parseAmount(s.omzet_bruto || s['Harga Asli Produk']);
+            const potongan = parseAmount(s.total_potongan || s['Biaya Administrasi']); 
+            // Catatan: Jika total_potongan belum dihitung saat import, 
+            // Anda bisa menghitungnya di sini: (Harga Asli - Total Penghasilan)
+
+            omzetShopee += bruto;
+            potonganShopee += potongan;
+        }
+    });
+}
 
     // 5. KALKULASI AKHIR (Gabungan Manual + Shopee)
     const pendapatanKotorTotal = pendapatanTunai + sisaPiutangPeriodeIni + omzetShopee;
