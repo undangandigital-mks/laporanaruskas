@@ -618,9 +618,11 @@ function renderLabaRugi() {
     let beban = 0;
     let pengembalian = 0;
     
-    // Variabel Khusus Shopee
-    let omzetShopee = 0;
-    let potonganShopee = 0;
+    // Variabel Khusus Shopee (Akun 1 & 2)
+    let omzetShopee1 = 0;
+    let potonganShopee1 = 0;
+    let omzetShopee2 = 0;
+    let potonganShopee2 = 0;
 
     // 1. Ambil Filter Tanggal
     const startInput = document.getElementById('lrDateStart').value;
@@ -629,7 +631,7 @@ function renderLabaRugi() {
     const startTime = startInput ? new Date(startInput).getTime() : -Infinity;
     const endTime = endInput ? new Date(endInput).setHours(23, 59, 59, 999) : Infinity;
 
-    // 2. HITUNG PIUTANG (Hanya yang terjadi di periode ini)
+    // 2. HITUNG PIUTANG (Hanya periode ini)
     if (db.piutang) {
         db.piutang.forEach(p => {
             const pDate = new Date(p["Waktu"]).getTime();
@@ -641,71 +643,69 @@ function renderLabaRugi() {
         });
     }
 
-      // 3. HITUNG TRANSAKSI (Cash Flow Manual)
-db.transaksi.forEach(r => {
-    const itemTime = new Date(r["Waktu"]).getTime();
-    if (!isNaN(itemTime) && itemTime >= startTime && itemTime <= endTime) {
-        const cat = (r["Kategori"] || "").toLowerCase().trim();
-        const ket = (r["Keterangan"] || "").toLowerCase().trim(); // Ambil kolom keterangan
+    // 3. HITUNG TRANSAKSI (Cash Flow)
+    db.transaksi.forEach(r => {
+        const itemTime = new Date(r["Waktu"]).getTime();
+        if (!isNaN(itemTime) && itemTime >= startTime && itemTime <= endTime) {
+            const cat = (r["Kategori"] || "").toLowerCase().trim();
+            const ket = (r["Keterangan"] || "").toLowerCase().trim();
 
-        // Filter pengecualian: Transfer Saldo, Saldo Awal, DAN Tarik Dana Shopee
-        if (
-            ["transfer saldo", "saldo awal"].some(ex => cat.includes(ex)) || 
-            ket.includes("tarik dana shopee1")
-        ) {
-            return; 
-        }
-
-        if (cat.includes("pengembalian dana")) {
-            pengembalian += parseFloat(r["Keluar"]) || 0;
-        } else {
-            if (!cat.includes("cicilan piutang")) {
-                pendapatanTunai += parseFloat(r["Masuk"]) || 0;
+            if (
+                ["transfer saldo", "saldo awal"].some(ex => cat.includes(ex)) || 
+                ket.includes("tarik dana shopee") // Menutup shopee1 & shopee2
+            ) {
+                return; 
             }
-            beban += parseFloat(r["Keluar"]) || 0;
+
+            if (cat.includes("pengembalian dana")) {
+                pengembalian += parseFloat(r["Keluar"]) || 0;
+            } else {
+                if (!cat.includes("cicilan piutang")) {
+                    pendapatanTunai += parseFloat(r["Masuk"]) || 0;
+                }
+                beban += parseFloat(r["Keluar"]) || 0;
+            }
         }
-    }
-});
+    });
 
-     
-    console.log("Data Shopee di DB:", db.shopee_income);
-console.log("Filter Range:", new Date(startTime), "sampai", new Date(endTime));
-
-// 4. LOGIKA BARU: HITUNG DATA SHOPEE
-if (db.shopee_income && Array.isArray(db.shopee_income)) {
+    // Fungsi Pembantu parsing angka
     const parseAmount = (val) => {
         if (typeof val === 'number') return val;
         if (!val) return 0;
         return parseFloat(String(val).replace(/[^\d.-]/g, '')) || 0;
     };
 
-    db.shopee_income.forEach(s => {
-        // SESUAIKAN DENGAN CONSOLE: 'Tgl Cair'
-        const rawDate = s['Tgl Cair'] || s.tgl_cair; 
-        if (!rawDate) return;
+    // 4. HITUNG DATA SHOPEE (AKUN 1 & 2)
+    const filterStart = startInput ? new Date(startInput).setHours(0, 0, 0, 0) : -Infinity;
+    const filterEnd = endInput ? new Date(endInput).setHours(23, 59, 59, 999) : Infinity;
 
-        // Normalisasi Tanggal ISO ke Lokal (YYYY-MM-DD)
-        const cleanDateStr = String(rawDate).substring(0, 10);
-        const sDate = new Date(cleanDateStr).setHours(0, 0, 0, 0);
+    const processShopee = (dataArray, target) => {
+        if (dataArray && Array.isArray(dataArray)) {
+            dataArray.forEach(s => {
+                const rawDate = s['Tgl Cair'] || s.tgl_cair; 
+                if (!rawDate) return;
+                const cleanDateStr = String(rawDate).substring(0, 10);
+                const sDate = new Date(cleanDateStr).setHours(0, 0, 0, 0);
 
-        // Filter Tanggal
-        const filterStart = startInput ? new Date(startInput).setHours(0, 0, 0, 0) : -Infinity;
-        const filterEnd = endInput ? new Date(endInput).setHours(23, 59, 59, 999) : Infinity;
-
-        if (sDate >= filterStart && sDate <= filterEnd) {
-            // SESUAIKAN DENGAN CONSOLE: 'Bruto' dan 'Potongan'
-            const bruto = parseAmount(s['Bruto'] || s.omzet_bruto);
-            const potongan = parseAmount(s['Potongan'] || s.total_potongan);
-
-            omzetShopee += bruto;
-            potonganShopee += potongan;
+                if (sDate >= filterStart && sDate <= filterEnd) {
+                    const bruto = parseAmount(s['Bruto'] || s.omzet_bruto);
+                    const potongan = parseAmount(s['Potongan'] || s.total_potongan);
+                    if (target === 1) { omzetShopee1 += bruto; potonganShopee1 += potongan; }
+                    else { omzetShopee2 += bruto; potonganShopee2 += potongan; }
+                }
+            });
         }
-    });
-}
+    };
 
-    // 5. KALKULASI AKHIR (Gabungan Manual + Shopee)
-    const pendapatanKotorTotal = pendapatanTunai + sisaPiutangPeriodeIni + omzetShopee;
-    const totalBebanGabungan = beban + potonganShopee;
+    processShopee(db.shopee_income, 1);
+    processShopee(db.shopee_income2, 2);
+
+    // 5. KALKULASI AKHIR
+    const totalOmzetShopee = omzetShopee1 + omzetShopee2;
+    const totalPotonganShopee = potonganShopee1 + potonganShopee2;
+    
+    const pendapatanKotorTotal = pendapatanTunai + sisaPiutangPeriodeIni + totalOmzetShopee;
+    const totalBebanGabungan = beban + totalPotonganShopee;
     const pendapatanBersih = pendapatanKotorTotal - pengembalian;
     const labaBersih = pendapatanBersih - totalBebanGabungan;
 
@@ -720,8 +720,12 @@ if (db.shopee_income && Array.isArray(db.shopee_income)) {
                 <span class="text-sm font-medium text-slate-900">${formatIDR(pendapatanTunai)}</span>
             </div>
             <div class="flex justify-between border-b border-slate-100 pb-2">
-                <span class="text-sm text-slate-600">Penjualan Shopee (Bruto)</span>
-                <span class="text-sm font-medium text-orange-600">${formatIDR(omzetShopee)}</span>
+                <span class="text-sm text-slate-600">Shopee 1 (Bruto)</span>
+                <span class="text-sm font-medium text-orange-600">${formatIDR(omzetShopee1)}</span>
+            </div>
+            <div class="flex justify-between border-b border-slate-100 pb-2">
+                <span class="text-sm text-slate-600">Shopee 2 (Bruto)</span>
+                <span class="text-sm font-medium text-orange-600">${formatIDR(omzetShopee2)}</span>
             </div>
             <div class="flex justify-between border-b border-slate-100 pb-2">
                 <span class="text-sm text-slate-600">Piutang Pelanggan</span>
@@ -738,8 +742,12 @@ if (db.shopee_income && Array.isArray(db.shopee_income)) {
                     <span>-${formatIDR(beban)}</span>
                 </div>
                 <div class="flex justify-between text-xs text-slate-500 mb-1">
-                    <span>Biaya Admin & Layanan Shopee</span>
-                    <span>-${formatIDR(potonganShopee)}</span>
+                    <span>Admin & Layanan Shopee 1</span>
+                    <span>-${formatIDR(potonganShopee1)}</span>
+                </div>
+                <div class="flex justify-between text-xs text-slate-500 mb-1">
+                    <span>Admin & Layanan Shopee 2</span>
+                    <span>-${formatIDR(potonganShopee2)}</span>
                 </div>
                 <div class="flex justify-between text-xs text-red-500 mb-2">
                     <span>Retur / Pengembalian Dana</span>
@@ -757,11 +765,10 @@ if (db.shopee_income && Array.isArray(db.shopee_income)) {
                 </div>
             </div>
             
-            <p class="text-[9px] text-center text-slate-400 italic">Data shopee diambil berdasarkan tanggal dana dilepaskan.</p>
+            <p class="text-[9px] text-center text-slate-400 italic">Data gabungan Muflih Print & Vi Printing.</p>
         </div>
     `;
 }
-        
 
 function renderLaporanKas() {
     const container = document.getElementById('kasContent'); 
