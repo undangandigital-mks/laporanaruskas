@@ -275,146 +275,161 @@ window.SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwTczYtdSQojBRttwT-
         let filteredData = [];
         let dateFilterMode = 'all';
 
-        // Variabel global sementara untuk menyimpan target akun
-let currentShopeeAction = 'insertShopeeData';
+     // Modifikasi fungsi processShopeeExcel Anda agar menerima parameter action
+async function processShopeeExcel(file, actionTarget = 'insertShopeeData') {
+    if (!file) return;
+    
+    // Sesuaikan selector agar bisa menangani tombol dropdown
+    const btn = document.querySelector(".bg-orange-500");
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Memproses...';
+    btn.disabled = true;
 
-function triggerShopeeImport(action) {
-    currentShopeeAction = action; // Set target akun
-    document.getElementById('shopeeInput').click(); // Buka file picker
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            
+            // Nama sheet laporan penghasilan shopee biasanya "Income"
+            const sheetName = "Income";
+            const worksheet = workbook.Sheets[sheetName];
+            
+            if (!worksheet) {
+                alert("Gagal: Sheet bernama 'Income' tidak ditemukan.");
+                return;
+            }
+
+            // Memulai pembacaan dari baris ke-6 (range: 5)
+            const rawData = XLSX.utils.sheet_to_json(worksheet, { range: 5 });
+            const shopeeDataToSave = [];
+
+            const parseVal = (val) => {
+                if (typeof val === 'number') return val;
+                if (!val || val === "-") return 0;
+                return parseFloat(String(val).replace(/[^\d.-]/g, '')) || 0;
+            };
+
+            rawData.forEach(row => {
+                if (row['No. Pesanan']) {
+                    const hargaAsli = parseVal(row['Harga Asli Produk']);
+                    const returKePembeli = parseVal(row['Jumlah Pengembalian Dana ke Pembeli']);
+                    const diskonProduk = parseVal(row['Total Diskon Produk']);
+
+                    // Hitung Omzet Bruto Bersih
+                    const brutoBersih = hargaAsli - Math.abs(returKePembeli) - Math.abs(diskonProduk);
+                    
+                    // Hitung total semua potongan
+                    const admin = parseVal(row['Biaya Administrasi']);
+                    const layanan = parseVal(row['Biaya Layanan']);
+                    const transaksi = parseVal(row['Biaya Transaksi']);
+                    const kampanye = parseVal(row['Biaya Kampanye']);
+                    const proses = parseVal(row['Biaya Proses Pesanan']);
+                    
+                    const totalPotongan = Math.abs(admin + layanan + transaksi + kampanye + proses);
+                    const netIncome = parseVal(row['Total Penghasilan']);
+
+                    shopeeDataToSave.push({
+                        tgl_cair: row['Tanggal Dana Dilepaskan'] || '',
+                        no_pesanan: row['No. Pesanan'],
+                        sku: row['Username (Pembeli)'] || '', // Menggunakan kolom pembeli jika SKU tidak ada
+                        omzet_bruto: brutoBersih,
+                        total_potongan: totalPotongan,
+                        net_income: netIncome
+                    });
+                }
+            });
+
+            if (shopeeDataToSave.length === 0) {
+                alert("Data kosong atau format header salah.");
+            } else {
+                // KIRIM KE BACKEND DENGAN ACTION DINAMIS
+                await fetch(window.SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        action: actionTarget, // 'insertShopeeData' atau 'insertShopeeData2'
+                        data: shopeeDataToSave
+                    })
+                });
+
+                const namaAkun = actionTarget === 'insertShopeeData' ? "Akun 1 (Muflih Print)" : "Akun 2 (Vi Printing)";
+                alert(`Berhasil! ${shopeeDataToSave.length} data untuk ${namaAkun} telah diimport.`);
+                
+                if (typeof fetchAllData === "function") fetchAllData();
+            }
+
+        } catch (error) {
+            console.error("Error Detail:", error);
+            alert("Terjadi kesalahan teknis saat membaca file.");
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    };
+    reader.readAsArrayBuffer(file);
 }
 
-// Update fungsi onchange pada input shopeeInput di HTML tadi menjadi:
+// Tambahkan fungsi trigger ini agar sinkron dengan dropdown HTML sebelumnya
+let currentShopeeAction = 'insertShopeeData';
+function triggerShopeeImport(action) {
+    currentShopeeAction = action;
+    document.getElementById('shopeeInput').click();
+}
+
+// Event listener untuk input file
 document.getElementById('shopeeInput').onchange = function() {
     if (this.files && this.files[0]) {
         processShopeeExcel(this.files[0], currentShopeeAction);
+        this.value = ''; // Reset input agar bisa upload file yang sama jika perlu
     }
 };
-
-// Modifikasi fungsi processShopeeExcel Anda agar menerima parameter action
-async function processShopeeExcel(file, actionTarget) {
-    // ... (Logika pembacaan Excel Anda menggunakan XLSX.js) ...
-    
-    // Saat bagian fetch/kirim data ke Apps Script:
-    // Pastikan menggunakan variabel actionTarget
-    const payload = {
-        action: actionTarget, // Akan berisi 'insertShopeeData' atau 'insertShopeeData2'
-        data: hasilDataExcel
-    };
-    
-    // Kirim ke SCRIPT_URL menggunakan method POST
-    // ...
-}
 
         function formatIDR(val) {
             const num = parseFloat(val) || 0;
             return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
         }
 
- function switchTab(tab) {
-    // 1. Reset State Global
+function switchTab(tab) {
     currentTab = tab;
     currentPage = 1;
 
-    // 2. Definisi elemen utama dashboard
     const statsGrid = document.getElementById('statsGrid');
     const filterContainer = document.querySelector('.bg-white.p-4.rounded-xl.card-shadow');
     const tableContainer = document.querySelector('.bg-white.rounded-xl.card-shadow.overflow-hidden');
-    const mainDashboardElements = [statsGrid, filterContainer, tableContainer];
+    
+    // Element Filter Tanggal
+    const dateQuickFilters = document.querySelector('.flex.gap-2.overflow-x-auto');
+    const dateInputSection = document.getElementById('dateStart')?.closest('.grid.grid-cols-2');
+    const btnResetRange = document.querySelector('button[onclick="resetDateRange()"]')?.parentElement;
 
-    // Target elemen filter spesifik berdasarkan kode Anda
-    const dateQuickFilters = document.querySelector('.flex.gap-2.overflow-x-auto'); // Container tombol Semua, Hari Ini, dll
-    const dateInputSection = document.getElementById('dateStart')?.closest('.grid.grid-cols-2'); // Container Input Tanggal
-    const btnResetRange = document.querySelector('button[onclick="resetDateRange()"]')?.parentElement; // Container Reset Kalender
-
-    // 3. Sembunyikan SEMUA halaman laporan khusus (page-content)
     document.querySelectorAll('.page-content').forEach(p => p.classList.add('hidden'));
-
-    // 4. Update Visual Tombol Navigasi Tab Utama
     document.querySelectorAll('[id^="tab-"]').forEach(btn => {
         btn.classList.remove('tab-active', 'text-blue-600', 'font-bold');
         btn.classList.add('text-slate-500');
     });
 
-    // 5. Logika Percabangan Tampilan
     if (tab === 'kas' || tab === 'labarugi') {
-        // --- MODE LAPORAN (Saldo Kas & Laba Rugi) ---
-        mainDashboardElements.forEach(el => el?.classList.add('hidden'));
-        const targetPage = document.getElementById(tab + 'Page');
-        if (targetPage) targetPage.classList.remove('hidden');
-
-        if (tab === 'kas') {
-            renderLaporanKas();
-        } else {
-            if(document.getElementById('lrDateStart')) {
-                document.getElementById('lrDateStart').value = document.getElementById('dateStart').value;
-                document.getElementById('lrDateEnd').value = document.getElementById('dateEnd').value;
-            }
-            renderLabaRugi();
-        }
+        [statsGrid, filterContainer, tableContainer].forEach(el => el?.classList.add('hidden'));
+        document.getElementById(tab + 'Page')?.classList.remove('hidden');
+        tab === 'kas' ? renderLaporanKas() : renderLabaRugi();
     } else {
-        // --- MODE DATA (Transaksi, Piutang, Stok) ---
-        mainDashboardElements.forEach(el => el?.classList.remove('hidden'));
+        [statsGrid, filterContainer, tableContainer].forEach(el => el?.classList.remove('hidden'));
 
-        // LOGIKA PEMBERSIHAN FILTER TANGGAL (AGRESIF UNTUK STOK & PIUTANG)
-        if (tab === 'stok' || tab === 'piutang') {
-            if (dateQuickFilters) dateQuickFilters.classList.add('hidden');
-            if (dateInputSection) dateInputSection.classList.add('hidden');
-            if (btnResetRange) btnResetRange.classList.add('hidden');
-            
-            // Netralkan nilai filter agar data tidak terpotong oleh filter tanggal sebelumnya
+        // Sembunyikan filter jika di tab Stok atau Piutang
+        const isStokOrPiutang = (tab === 'stok' || tab === 'piutang');
+        if (dateQuickFilters) dateQuickFilters.classList.toggle('hidden', isStokOrPiutang);
+        if (dateInputSection) dateInputSection.classList.toggle('hidden', isStokOrPiutang);
+        if (btnResetRange) btnResetRange.classList.toggle('hidden', isStokOrPiutang);
+
+        if (isStokOrPiutang) {
             document.getElementById('dateStart').value = "";
             document.getElementById('dateEnd').value = "";
-        } else {
-            // Tampilkan kembali elemen filter jika kembali ke tab Transaksi/Semua
-            if (dateQuickFilters) dateQuickFilters.classList.remove('hidden');
-            if (dateInputSection) dateInputSection.classList.remove('hidden');
-            if (btnResetRange) btnResetRange.classList.remove('hidden');
         }
 
-        // KHUSUS TAB STOK: Tampilkan Kartu Total Nilai Aset
-        if (tab === 'stok') {
-            statsGrid.innerHTML = `
-                <div class="col-span-full bg-white p-6 rounded-2xl shadow-sm border border-blue-100 flex items-center justify-between">
-                    <div>
-                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Nilai Aset Stok</p>
-                        <h3 id="totalAsetStok" class="text-2xl font-black text-blue-600">Rp 0</h3>
-                    </div>
-                    <div class="w-12 h-12 bg-blue-50 text-blue-500 rounded-2xl flex items-center justify-center text-xl">
-                        <i class="fas fa-boxes-stacked"></i>
-                    </div>
-                </div>
-            `;
-        } else {
-            // STRUKTUR 4 KARTU UNTUK TRANSAKSI/PIUTANG
-            statsGrid.innerHTML = `
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase">Pendapatan</p>
-                    <h3 id="totalMasuk" class="text-sm font-bold text-slate-800">Rp 0</h3>
-                </div>
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase">Pengeluaran</p>
-                    <h3 id="totalKeluar" class="text-sm font-bold text-slate-800">Rp 0</h3>
-                </div>
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase">Laba Kotor</p>
-                    <h3 id="totalSaldo" class="text-sm font-bold text-slate-800">Rp 0</h3>
-                </div>
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase">Sisa Piutang</p>
-                    <h3 id="totalPiutang" class="text-sm font-bold text-slate-800">Rp 0</h3>
-                </div>
-            `;
-        }
-        
         renderContent(); 
     }
 
-    // 6. Tandai Tombol yang Aktif
-    const activeBtn = document.getElementById('tab-' + tab);
-    if (activeBtn) {
-        activeBtn.classList.add('tab-active', 'text-blue-600', 'font-bold');
-        activeBtn.classList.remove('text-slate-500');
-    }
+    document.getElementById('tab-' + tab)?.classList.add('tab-active', 'text-blue-600', 'font-bold');
 }
         
         async function fetchAllData() {
@@ -463,12 +478,22 @@ async function processShopeeExcel(file, actionTarget) {
             });
         }
 
+let currentShopeeAction = 'insertShopeeData';
 
+function triggerShopeeImport(action) {
+    currentShopeeAction = action;
+    document.getElementById('shopeeInput').click();
+}
 
-async function processShopeeExcel(file) {
-    if (!file) return;
-    
-    const btn = document.querySelector("button[onclick*='shopeeInput']");
+document.getElementById('shopeeInput').addEventListener('change', function() {
+    if (this.files && this.files[0]) {
+        processShopeeExcel(this.files[0], currentShopeeAction);
+        this.value = ''; 
+    }
+});
+
+async function processShopeeExcel(file, actionTarget) {
+    const btn = document.querySelector(".bg-orange-500");
     const originalText = btn.innerHTML;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Memproses...';
     btn.disabled = true;
@@ -478,82 +503,32 @@ async function processShopeeExcel(file) {
         try {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
-            
-            const sheetName = "Income";
-            const worksheet = workbook.Sheets[sheetName];
-            
-            if (!worksheet) {
-                alert("Gagal: Sheet bernama 'Income' tidak ditemukan.");
-                btn.innerHTML = originalText;
-                btn.disabled = false;
-                return;
-            }
+            const worksheet = workbook.Sheets["Income"];
+            if (!worksheet) throw new Error("Sheet 'Income' tidak ditemukan.");
 
             const rawData = XLSX.utils.sheet_to_json(worksheet, { range: 5 });
-            const shopeeDataToSave = [];
-
-            // Fungsi pembantu untuk konversi angka aman
-            const parseVal = (val) => {
-                if (typeof val === 'number') return val;
-                if (!val || val === "-") return 0;
-                return parseFloat(String(val).replace(/[^\d.-]/g, '')) || 0;
-            };
-
-            rawData.forEach(row => {
-                if (row['No. Pesanan']) {
-                    // 1. Ambil Komponen Pendapatan
-                    const hargaAsli = parseVal(row['Harga Asli Produk']);
-                    const returKePembeli = parseVal(row['Jumlah Pengembalian Dana ke Pembeli']);
-                    const diskonProduk = parseVal(row['Total Diskon Produk']);
-
-                    /**
-                     * LOGIKA BRUTO BERSIH:
-                     * Karena nilai Retur dan Diskon di Excel Shopee biasanya negatif (minus),
-                     * kita gunakan Math.abs() agar menjadi positif, lalu dikurangi dari Harga Asli.
-                     */
-                    const brutoBersih = hargaAsli - Math.abs(returKePembeli) - Math.abs(diskonProduk);
-                    
-                    // 2. Hitung total semua potongan (Biaya Admin, Layanan, dll)
-                    const admin = parseVal(row['Biaya Administrasi']);
-                    const layanan = parseVal(row['Biaya Layanan']);
-                    const transaksi = parseVal(row['Biaya Transaksi']);
-                    const kampanye = parseVal(row['Biaya Kampanye']);
-                    const proses = parseVal(row['Biaya Proses Pesanan']);
-                    
-                    const totalPotongan = Math.abs(admin + layanan + transaksi + kampanye + proses);
-                    const netIncome = parseVal(row['Total Penghasilan']);
-
-                    shopeeDataToSave.push({
-                        tgl_cair: row['Tanggal Dana Dilepaskan'] || '',
-                        no_pesanan: row['No. Pesanan'],
-                        pembeli: row['Username (Pembeli)'] || '',
-                        omzet_bruto: brutoBersih,
-                        total_potongan: totalPotongan,
-                        net_income: netIncome
-                    });
-                }
+            const shopeeDataToSave = rawData.filter(row => row['No. Pesanan']).map(row => {
+                const parseVal = (v) => typeof v === 'number' ? v : (parseFloat(String(v).replace(/[^\d.-]/g, '')) || 0);
+                return {
+                    tgl_cair: row['Tanggal Dana Dilepaskan'] || '',
+                    no_pesanan: row['No. Pesanan'],
+                    sku: row['Username (Pembeli)'] || '',
+                    omzet_bruto: parseVal(row['Harga Asli Produk']) - Math.abs(parseVal(row['Jumlah Pengembalian Dana ke Pembeli'])) - Math.abs(parseVal(row['Total Diskon Produk'])),
+                    total_potongan: Math.abs(parseVal(row['Biaya Administrasi']) + parseVal(row['Biaya Layanan']) + parseVal(row['Biaya Transaksi'])),
+                    net_income: parseVal(row['Total Penghasilan'])
+                };
             });
 
-            if (shopeeDataToSave.length === 0) {
-                alert("Data kosong atau format header salah.");
-            } else {
-                await fetch(window.SCRIPT_URL, {
-                    method: 'POST',
-                    mode: 'no-cors', // Tetap gunakan mode ini jika Apps Script tidak diatur CORS-nya
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'insertShopeeData',
-                        data: shopeeDataToSave
-                    })
-                });
+            await fetch(window.SCRIPT_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ action: actionTarget, data: shopeeDataToSave })
+            });
 
-                alert(`Berhasil mengimpor ${shopeeDataToSave.length} data. Data lama telah dibersihkan.`);
-                if (typeof fetchAllData === "function") fetchAllData();
-            }
-
-        } catch (error) {
-            console.error("Error Detail:", error);
-            alert("Terjadi kesalahan teknis saat membaca file.");
+            alert("Berhasil mengimpor data Shopee!");
+            fetchAllData();
+        } catch (err) {
+            alert(err.message);
         } finally {
             btn.innerHTML = originalText;
             btn.disabled = false;
@@ -561,7 +536,7 @@ async function processShopeeExcel(file) {
     };
     reader.readAsArrayBuffer(file);
 }
-
+        
 
       function calculateStats() {
     const statsGrid = document.getElementById('statsGrid');
