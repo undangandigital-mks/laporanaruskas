@@ -793,9 +793,9 @@ function renderLaporanKas() {
         saldo: 0,
         cash: 0,
         rekening: 0,
-        saldoShopee1: 0,
+        saldoShopee1: 0, // Dipisah per akun
         saldoShopee2: 0,
-        totalTarikShopee1: 0,
+        totalTarikShopee1: 0, // Dipisah per akun
         totalTarikShopee2: 0 
     };
 
@@ -811,6 +811,7 @@ function renderLaporanKas() {
         if (masuk > 0) {
             if (kategori === "saldo awal") data.saldoAwal += masuk;
             else if (kategori === "penjualan") {
+                // Deteksi penarikan dana spesifik
                 if (keterangan.includes("tarik dana shopee1")) data.totalTarikShopee1 += masuk;
                 else if (keterangan.includes("tarik dana shopee2")) data.totalTarikShopee2 += masuk;
                 else data.penjualanLangsung += masuk;
@@ -831,14 +832,14 @@ function renderLaporanKas() {
         data.saldo += netto;
     });
 
-    // 2. Ambil Data Piutang
+    // 2. Ambil Data dari db.piutang
     db.piutang.forEach(row => {
         data.totalTagihanPiutang += parseFloat(row["Total Tagihan"] || 0);
         data.totalDPPiutang += parseFloat(row["DP"] || 0);
         data.sisaPiutang += parseFloat(row["Sisa Piutang"] || row["Sisa"] || 0);
     });
 
-    // 3. Hitung Saldo Shopee
+    // 3. Hitung Saldo Shopee (Fungsi internal untuk efisiensi)
     const hitungNetIncome = (dataArray) => {
         if (!dataArray || !Array.isArray(dataArray)) return 0;
         return dataArray.reduce((acc, s) => {
@@ -850,31 +851,34 @@ function renderLaporanKas() {
     data.saldoShopee1 = hitungNetIncome(db.shopee_income) - data.totalTarikShopee1;
     data.saldoShopee2 = hitungNetIncome(db.shopee_income2) - data.totalTarikShopee2;
 
-    // Perhitungan Final
+    // --- LOGIKA PERHITUNGAN TOTAL ---
+    const saldoShopeeBelumTarik = data.saldoShopee1 + data.saldoShopee2;
+    const totalAsetKeseluruhan = data.saldo + saldoShopeeBelumTarik;
     const totalA = data.saldoAwal;
     const omsetBruto = data.penjualanLangsung + (data.totalTagihanPiutang - data.totalDPPiutang);
     const totalB = omsetBruto - data.sisaPiutang;
-    const totalC = data.operasional + data.pembelian; // Total Pengeluaran
-    const totalD = data.saldoShopee1 + data.saldoShopee2 + data.totalTarikShopee1 + data.totalTarikShopee2; // Total Nilai Shopee
-    
-    // Total Keseluruhan (Aset Kas + Aset Shopee yang belum ditarik)
-    const saldoShopeeBelumTarik = data.saldoShopee1 + data.saldoShopee2;
-    const totalSemuaAset = data.saldo + saldoShopeeBelumTarik;
+    const totalC = data.totalTarikShopee1 + data.totalTarikShopee2 + data.saldoShopee1 + data.saldoShopee2;
+    const totalD = data.operasional + data.pembelian;
 
-    container.innerHTML = `
+container.innerHTML = `
         <div class="space-y-4 sm:space-y-6 animate-fade col-span-full">
             <div class="bg-gradient-to-br from-blue-600 to-indigo-700 p-6 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] text-white shadow-2xl text-center">
-                <p class="text-[9px] sm:text-xs font-bold uppercase opacity-80 mb-1">Total Saldo Kas (Tunai + Bank)</p>
+                <p class="text-[9px] sm:text-xs font-bold uppercase opacity-80 mb-1">Total Saldo Kas</p>
                 <h2 class="text-2xl sm:text-4xl font-black">${formatIDR(data.saldo)}</h2>
                 <div class="mt-4 pt-4 border-t border-white/20 grid grid-cols-2 text-[10px] sm:text-[11px]">
-                    <div class="border-r border-white/10 italic opacity-90">TUNAI: <br><b class="text-xs sm:text-sm">${formatIDR(data.cash)}</b></div>
-                    <div class="italic opacity-90">BANK: <br><b class="text-xs sm:text-sm">${formatIDR(data.rekening)}</b></div>
+                    <div class="border-r border-white/10">TUNAI: <br class="sm:hidden"> <b>${formatIDR(data.cash)}</b></div>
+                    <div>BANK: <br class="sm:hidden"> <b>${formatIDR(data.rekening)}</b></div>
                 </div>
             </div>
 
             <div class="bg-white rounded-2xl sm:rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
                 <table class="w-full text-left">
                     <tbody class="divide-y divide-slate-50">
+                        <tr class="bg-slate-900 text-white font-black">
+                            <td class="p-4 text-[10px] sm:text-xs uppercase tracking-widest">Total Aset (Kas + Shopee)</td>
+                            <td class="p-4 text-right text-sm sm:text-lg">${formatIDR(totalAsetKeseluruhan)}</td>
+                        </tr>
+
                         <tr class="bg-slate-50 font-black">
                             <td class="p-3 sm:p-4 text-[9px] sm:text-[10px] text-slate-500 uppercase">A. Total Saldo Awal</td>
                             <td class="p-3 sm:p-4 text-right text-xs sm:text-sm text-slate-800">${formatIDR(totalA)}</td>
@@ -884,7 +888,7 @@ function renderLaporanKas() {
                             <td colspan="2" class="p-3 sm:p-4 text-[9px] sm:text-[10px] font-black text-blue-600 uppercase tracking-wider">B. Pendapatan (Offline)</td>
                         </tr>
                         <tr>
-                            <td class="p-3 sm:p-4 text-xs sm:text-sm text-slate-600 pl-6 sm:pl-8">Penjualan Toko & Proyek</td>
+                            <td class="p-3 sm:p-4 text-xs sm:text-sm text-slate-600 pl-6 sm:pl-8 font-semibold">Penjualan Toko & Proyek</td>
                             <td class="p-3 sm:p-4 text-right text-xs sm:text-sm font-bold text-slate-700">${formatIDR(omsetBruto)}</td>
                         </tr>
                         <tr>
@@ -895,46 +899,43 @@ function renderLaporanKas() {
                             <td class="p-3 sm:p-4 text-[9px] sm:text-[10px] text-blue-800 uppercase pl-6 sm:pl-8 text-right">Total Pendapatan (B)</td>
                             <td class="p-3 sm:p-4 text-right text-xs sm:text-sm text-blue-800">${formatIDR(totalB)}</td>
                         </tr>
-                        
+
                         <tr class="bg-orange-50/50">
-                            <td colspan="2" class="p-3 sm:p-4 text-[9px] sm:text-[10px] font-black text-orange-600 uppercase tracking-wider">D. Platform Online (Shopee)</td>
+                            <td colspan="2" class="p-3 sm:p-4 text-[9px] sm:text-[10px] font-black text-orange-600 uppercase tracking-wider">C. Platform Online (Shopee)</td>
                         </tr>
                         <tr class="text-[10px] sm:text-[11px]">
-                            <td class="p-2 sm:p-3 pl-6 sm:pl-8 text-slate-500 italic">Total Saldo Shopee (1+2)</td>
+                            <td class="p-2 sm:p-3 pl-6 sm:pl-8 text-slate-500 italic">Sisa Saldo Shopee (1+2)</td>
                             <td class="p-2 sm:p-3 text-right text-orange-600">${formatIDR(saldoShopeeBelumTarik)}</td>
                         </tr>
                         <tr class="font-black bg-orange-100/40">
-                            <td class="p-3 sm:p-4 text-[9px] sm:text-[10px] text-orange-800 uppercase pl-6 sm:pl-8 text-right">Total Nilai Platform (D)</td>
-                            <td class="p-3 sm:p-4 text-right text-xs sm:text-sm text-orange-800">${formatIDR(totalD)}</td>
+                            <td class="p-3 sm:p-4 text-[9px] sm:text-[10px] text-orange-800 uppercase pl-6 sm:pl-8 text-right">Total Nilai Platform (C)</td>
+                            <td class="p-3 sm:p-4 text-right text-xs sm:text-sm text-orange-800">${formatIDR(totalC)}</td>
                         </tr>
 
                         <tr class="bg-red-50/50">
-                            <td colspan="2" class="p-3 sm:p-4 text-[9px] sm:text-[10px] font-black text-red-600 uppercase tracking-wider">C. Pengeluaran</td>
+                            <td colspan="2" class="p-3 sm:p-4 text-[9px] sm:text-[10px] font-black text-red-600 uppercase tracking-wider">D. Pengeluaran</td>
                         </tr>
                         <tr>
-                            <td class="p-3 sm:p-4 text-xs sm:text-sm text-slate-600 pl-6 sm:pl-8">Biaya Operasional</td>
+                            <td class="p-3 sm:p-4 text-xs sm:text-sm text-slate-600 pl-6 sm:pl-8 font-medium">Biaya Operasional</td>
                             <td class="p-3 sm:p-4 text-right text-xs sm:text-sm font-bold text-red-500">-${formatIDR(data.operasional)}</td>
                         </tr>
                         <tr>
-                            <td class="p-3 sm:p-4 text-xs sm:text-sm text-slate-600 pl-6 sm:pl-8">Pembelian Stok & Alat</td>
+                            <td class="p-3 sm:p-4 text-xs sm:text-sm text-slate-600 pl-6 sm:pl-8 font-medium">Pembelian Stok & Alat</td>
                             <td class="p-3 sm:p-4 text-right text-xs sm:text-sm font-bold text-red-500">-${formatIDR(data.pembelian)}</td>
                         </tr>
                         <tr class="font-black bg-red-100/40">
-                            <td class="p-3 sm:p-4 text-[9px] sm:text-[10px] text-red-800 uppercase pl-6 sm:pl-8 text-right">Total Pengeluaran (C)</td>
-                            <td class="p-3 sm:p-4 text-right text-xs sm:text-sm text-red-800">${formatIDR(totalC)}</td>
-                        </tr>
-
-                        <tr class="bg-slate-900 text-white font-black">
-                            <td class="p-4 text-[10px] sm:text-xs uppercase tracking-widest">Total Keseluruhan (Kas + Shopee)</td>
-                            <td class="p-4 text-right text-sm sm:text-lg">${formatIDR(totalSemuaAset)}</td>
+                            <td class="p-3 sm:p-4 text-[9px] sm:text-[10px] text-red-800 uppercase pl-6 sm:pl-8 text-right">Total Pengeluaran (D)</td>
+                            <td class="p-3 sm:p-4 text-right text-xs sm:text-sm text-red-800">${formatIDR(totalD)}</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
         </div>
     `;
+
+  
 }
-        
+
 async function processPembelianExcel(file) {
     if (!file) return;
     
