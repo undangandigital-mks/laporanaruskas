@@ -702,153 +702,153 @@ if (db.shopee_income && Array.isArray(db.shopee_income)) {
         
 
 function renderLaporanKas() {
-   const container = document.getElementById('kasContent'); 
+    const container = document.getElementById('kasContent'); 
+    
+    let data = { 
+        saldoAwal: 0,
+        penjualanLangsung: 0, 
+        cicilanPiutang: 0,
+        totalTagihanPiutang: 0, 
+        totalDPPiutang: 0,
+        sisaPiutang: 0,
+        pembelian: 0, 
+        operasional: 0, 
+        saldo: 0,
+        cash: 0,
+        rekening: 0,
+        saldoShopee: 0,
+        totalTarikShopee: 0 
+    };
 
-let data = { 
-    saldoAwal: 0,
-    penjualanLangsung: 0, 
-    cicilanPiutang: 0,
-    sisaPiutang: 0, 
-    pembelian: 0, 
-    operasional: 0, 
-    saldo: 0,
-    cash: 0,
-    rekening: 0,
-    saldoShopee: 0,
-    totalTarikShopee: 0 
-};
+    // 1. Hitung Transaksi (Abaikan Transfer Saldo dari Omset/Biaya)
+    db.transaksi.forEach(row => {
+        const masuk = parseFloat(row["Masuk"]) || 0;
+        const keluar = parseFloat(row["Keluar"]) || 0;
+        const kategori = (row["Kategori"] || "").toLowerCase().trim();
+        const keterangan = (row["Keterangan"] || "").toLowerCase().trim();
+        const metode = (row["Metode"] || "cash").toLowerCase();
+        const netto = masuk - keluar;
 
-// 1. Hitung Saldo & Kategori dari Transaksi Manual
-db.transaksi.forEach(row => {
-    const masuk = parseFloat(row["Masuk"]) || 0;
-    const keluar = parseFloat(row["Keluar"]) || 0;
-    const kategori = (row["Kategori"] || "").toLowerCase().trim();
-    const keterangan = (row["Keterangan"] || "").toLowerCase().trim();
-    const metode = (row["Metode"] || "cash").toLowerCase();
-    const netto = masuk - keluar;
+        // A. Filter UANG MASUK (Hanya Saldo Awal, Penjualan, Cicilan)
+        if (masuk > 0) {
+            if (kategori === "saldo awal") {
+                data.saldoAwal += masuk;
+            } 
+            else if (kategori === "penjualan") {
+                // Filter khusus Shopee1 agar tidak tercampur Offline
+                if (keterangan.includes("tarik dana shopee1")) {
+                    data.totalTarikShopee += masuk;
+                } else {
+                    data.penjualanLangsung += masuk;
+                }
+            } 
+            else if (kategori === "cicilan piutang") {
+                data.cicilanPiutang += masuk;
+            }
+            // Kategori "transfer saldo" Masuk: DIABAIKAN dari Omset
+        }
 
-    if (kategori.includes("saldo awal")) {
-        data.saldoAwal += masuk;
-    }
+        // B. Filter UANG KELUAR (Hanya Operasional, Pembelian)
+        if (keluar > 0) {
+            if (kategori === "operasional") {
+                data.operasional += keluar;
+            } 
+            else if (kategori === "pembelian") {
+                data.pembelian += keluar;
+            }
+            // Kategori "transfer saldo" Keluar: DIABAIKAN dari Biaya
+        }
 
-    // --- LOGIKA FILTER SHOPEE ---
-    // Kita buat variabel boolean agar pengecekan konsisten
-    const isShopee1 = keterangan.includes("tarik dana shopee1");
-
-    // Jika Shopee1, masukkan ke penampung penarikan shopee
-    if (isShopee1) {
-        data.totalTarikShopee += masuk;
-    }
-
-    if (masuk > 0 && !kategori.includes("saldo awal") && !kategori.includes("transfer") && !kategori.includes("cancel order")) {
-        
-        if (isShopee1) {
-            // JANGAN masukkan ke penjualan offline jika kodenya 'shopee1'
-            // Ini dianggap murni perpindahan saldo dari Shopee ke Kas/Bank
-        } else if (kategori.includes("cicilan") || kategori.includes("piutang")) {
-            data.cicilanPiutang += masuk;
+        // C. Update Saldo Fisik (Tetap dihitung agar angka Cash/Bank akurat)
+        if (metode.includes("rekening") || metode.includes("bank") || metode.includes("tf")) {
+            data.rekening += netto;
         } else {
-            /** * Shopee2 atau keterangan lainnya akan masuk ke sini.
-             * Ini akan dihitung sebagai Penjualan Toko (Offline).
-             */
-            data.penjualanLangsung += masuk;
+            data.cash += netto;
         }
-    }
-    
-    // --- LOGIKA PENGELUARAN ---
-    if (keluar > 0) {
-        if (kategori.includes("beli") || kategori.includes("stok")) {
-            data.pembelian += keluar;
-        } else if (!kategori.includes("transfer") && !kategori.includes("pengembalian dana")) {
-            data.operasional += keluar;
-        }
-    }
-
-    // Pisahkan saldo berdasarkan metode
-    if (metode.includes("rekening") || metode.includes("bank") || metode.includes("tf")) {
-        data.rekening += netto;
-    } else {
-        data.cash += netto;
-    }
-    data.saldo += netto;
-});
-
-// 2. Hitung Sisa Piutang Manual
-db.piutang.forEach(row => {
-    data.sisaPiutang += parseFloat(row["Sisa Piutang"] || row["Sisa"] || 0);
-});
-
-// 3. HITUNG SALDO SHOPEE (Logika Laba Rugi)
-let totalPendapatanShopeeNet = 0;
-if (db.shopee_income && Array.isArray(db.shopee_income)) {
-    db.shopee_income.forEach(s => {
-        const net = parseFloat(s['Net Income'] || s.net_income || s['Total Penghasilan']) || 0;
-        totalPendapatanShopeeNet += net;
+        data.saldo += netto;
     });
-}
 
-/**
- * Saldo Shopee Real = Total Pendapatan Shopee - Total yang ditarik lewat 'shopee1'
- * Shopee2 tidak mengurangi saldo ini karena dianggap sudah masuk ke Kas Toko sebagai 'Penjualan'.
- */
-data.saldoShopee = totalPendapatanShopeeNet - data.totalTarikShopee;
+    // 2. Ambil Data Piutang (Total Tagihan - DP)
+    db.piutang.forEach(row => {
+        data.totalTagihanPiutang += parseFloat(row["Total Tagihan"] || 0);
+        data.totalDPPiutang += parseFloat(row["DP"] || 0);
+        data.sisaPiutang += parseFloat(row["Sisa Piutang"] || row["Sisa"] || 0);
+    });
 
-// Perhitungan Final
-const totalPenjualanUangMasuk = data.penjualanLangsung + data.cicilanPiutang;
-const totalAsetLiquid = data.saldo + data.saldoShopee;
+    // 3. Hitung Saldo Shopee
+    let totalPendapatanShopeeNet = 0;
+    if (db.shopee_income && Array.isArray(db.shopee_income)) {
+        db.shopee_income.forEach(s => {
+            const net = parseFloat(s['Net Income'] || s.net_income || s['Total Penghasilan']) || 0;
+            totalPendapatanShopeeNet += net;
+        });
+    }
+    data.saldoShopee = totalPendapatanShopeeNet - data.totalTarikShopee;
+
+    // --- LOGIKA PERHITUNGAN FINAL ---
+    // Offline = Penjualan Kas + (Tagihan - DP dari Piutang)
+    const nilaiProjectPiutang = data.totalTagihanPiutang - data.totalDPPiutang;
+    const totalPenjualanOffline = data.penjualanLangsung + nilaiProjectPiutang;
     
-    // 4. RENDER TAMPILAN (Sama seperti sebelumnya, data.saldoShopee sekarang sudah akurat)
+    const totalPengeluaran = data.operasional + data.pembelian;
+
+    // 4. RENDER TAMPILAN
     container.innerHTML = `
         <div class="space-y-6 animate-fade col-span-full">
-            <div class="bg-gradient-to-br from-blue-600 to-indigo-700 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden text-center">
-                <p class="text-xs font-bold uppercase opacity-80 tracking-widest mb-2">Total Saldo Kas (Real)</p>
+            <div class="bg-gradient-to-br from-blue-600 to-indigo-700 p-8 rounded-[2.5rem] text-white shadow-2xl text-center">
+                <p class="text-xs font-bold uppercase opacity-80 mb-2">Total Saldo Kas</p>
                 <h2 class="text-4xl font-black">${formatIDR(data.saldo)}</h2>
-                <div class="mt-4 pt-4 border-t border-white/20">
-                    <p class="text-[10px] uppercase opacity-70 mb-1">Total Aset (Kas + Shopee yang belum ditarik)</p>
-                    <p class="text-lg font-bold">${formatIDR(totalAsetLiquid)}</p>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-3 gap-3">
-                <div class="bg-white p-4 rounded-3xl border border-slate-100 card-shadow text-center">
-                    <p class="text-[9px] font-bold text-slate-400 uppercase mb-1">Tunai</p>
-                    <p class="text-xs font-black text-slate-800">${formatIDR(data.cash)}</p>
-                </div>
-                <div class="bg-white p-4 rounded-3xl border border-slate-100 card-shadow text-center">
-                    <p class="text-[9px] font-bold text-slate-400 uppercase mb-1">Bank</p>
-                    <p class="text-xs font-black text-slate-800">${formatIDR(data.rekening)}</p>
-                </div>
-                <div class="bg-orange-50 p-4 rounded-3xl border border-orange-100 card-shadow text-center">
-                    <p class="text-[9px] font-bold text-orange-400 uppercase mb-1">Saldo Shopee</p>
-                    <p class="text-xs font-black text-orange-600">${formatIDR(data.saldoShopee)}</p>
+                <div class="mt-4 pt-4 border-t border-white/20 grid grid-cols-2 text-[11px]">
+                    <div class="border-r border-white/10">TUNAI: <b>${formatIDR(data.cash)}</b></div>
+                    <div>BANK: <b>${formatIDR(data.rekening)}</b></div>
                 </div>
             </div>
 
             <div class="bg-white rounded-3xl border border-slate-100 card-shadow overflow-hidden">
                 <table class="w-full text-left">
                     <tbody class="divide-y divide-slate-50">
-                        <tr class="bg-slate-50/50">
-                            <td colspan="2" class="p-4 text-[10px] font-black text-blue-600 uppercase tracking-widest">Alur Kas Masuk</td>
+                        <tr class="bg-slate-50">
+                            <td class="p-4 text-[10px] font-black text-slate-400 uppercase">A. Saldo Awal</td>
+                            <td class="p-4 text-right text-sm font-bold">${formatIDR(data.saldoAwal)}</td>
+                        </tr>
+
+                        <tr class="bg-blue-50/50">
+                            <td colspan="2" class="p-4 text-[10px] font-black text-blue-600 uppercase">B. Pendapatan (Offline)</td>
                         </tr>
                         <tr>
-                            <td class="p-4 text-sm text-slate-600">Saldo Awal</td>
-                            <td class="p-4 text-right text-sm font-bold text-slate-800">${formatIDR(data.saldoAwal)}</td>
+                            <td class="p-4 text-sm text-slate-600 pl-8">Total Penjualan Toko</td>
+                            <td class="p-4 text-right text-sm font-bold text-green-600">${formatIDR(totalPenjualanOffline)}</td>
                         </tr>
                         <tr>
-                            <td class="p-4 text-sm text-slate-600">Penjualan Toko (Offline)</td>
-                            <td class="p-4 text-right text-sm font-bold text-slate-800">${formatIDR(totalPenjualanUangMasuk)}</td>
+                            <td class="p-4 text-[11px] text-slate-400 pl-12 italic">Sisa Piutang (Belum Cair)</td>
+                            <td class="p-4 text-right text-sm font-medium text-slate-400">-${formatIDR(data.sisaPiutang)}</td>
+                        </tr>
+
+                        <tr class="bg-red-50/50">
+                            <td colspan="2" class="p-4 text-[10px] font-black text-red-600 uppercase">C. Pengeluaran</td>
                         </tr>
                         <tr>
-                            <td class="p-4 text-sm text-slate-600">Pencairan Dana Shopee</td>
+                            <td class="p-4 text-sm text-slate-600 pl-8">Operasional + Pembelian</td>
+                            <td class="p-4 text-right text-sm font-bold text-red-500">-${formatIDR(totalPengeluaran)}</td>
+                        </tr>
+
+                        <tr class="bg-orange-50/50">
+                            <td colspan="2" class="p-4 text-[10px] font-black text-orange-600 uppercase">D. Platform Online</td>
+                        </tr>
+                        <tr>
+                            <td class="p-4 text-sm text-slate-600 pl-8">Pencairan Shopee (Shopee1)</td>
                             <td class="p-4 text-right text-sm font-bold text-orange-600">+${formatIDR(data.totalTarikShopee)}</td>
                         </tr>
-                        </tbody>
+                        <tr>
+                            <td class="p-4 text-sm text-slate-600 pl-8 font-bold">Saldo Shopee (Belum Tarik)</td>
+                            <td class="p-4 text-right text-sm font-bold text-orange-600">${formatIDR(data.saldoShopee)}</td>
+                        </tr>
+                    </tbody>
                 </table>
             </div>
         </div>
     `;
 }
-    
 
 // Fungsi Reset jika ingin kembali ke pengaturan awal
 function resetLRFilter() {
