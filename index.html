@@ -570,23 +570,31 @@ function renderLabaRugi() {
     }
 
     // 3. HITUNG TRANSAKSI (Cash Flow Manual)
-    db.transaksi.forEach(r => {
-        const itemTime = new Date(r["Waktu"]).getTime();
-        if (!isNaN(itemTime) && itemTime >= startTime && itemTime <= endTime) {
-            const cat = (r["Kategori"] || "").toLowerCase().trim();
+    // 3. HITUNG TRANSAKSI (Cash Flow Manual)
+db.transaksi.forEach(r => {
+    const itemTime = new Date(r["Waktu"]).getTime();
+    if (!isNaN(itemTime) && itemTime >= startTime && itemTime <= endTime) {
+        const cat = (r["Kategori"] || "").toLowerCase().trim();
+        const ket = (r["Keterangan"] || "").toLowerCase().trim(); // Ambil kolom keterangan
 
-            if (["transfer saldo", "saldo awal"].some(ex => cat.includes(ex))) return; 
-
-            if (cat.includes("pengembalian dana")) {
-                pengembalian += parseFloat(r["Keluar"]) || 0;
-            } else {
-                if (!cat.includes("cicilan piutang")) {
-                    pendapatanTunai += parseFloat(r["Masuk"]) || 0;
-                }
-                beban += parseFloat(r["Keluar"]) || 0;
-            }
+        // Filter pengecualian: Transfer Saldo, Saldo Awal, DAN Tarik Dana Shopee
+        if (
+            ["transfer saldo", "saldo awal"].some(ex => cat.includes(ex)) || 
+            ket.includes("tarik dana shopee")
+        ) {
+            return; 
         }
-    });
+
+        if (cat.includes("pengembalian dana")) {
+            pengembalian += parseFloat(r["Keluar"]) || 0;
+        } else {
+            if (!cat.includes("cicilan piutang")) {
+                pendapatanTunai += parseFloat(r["Masuk"]) || 0;
+            }
+            beban += parseFloat(r["Keluar"]) || 0;
+        }
+    }
+});
 
     // 4. LOGIKA BARU: HITUNG DATA SHOPEE
     console.log("Data Shopee di DB:", db.shopee_income);
