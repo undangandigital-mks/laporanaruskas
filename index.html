@@ -793,9 +793,9 @@ function renderLaporanKas() {
         saldo: 0,
         cash: 0,
         rekening: 0,
-        saldoShopee1: 0, 
+        saldoShopee1: 0, // Dipisah per akun
         saldoShopee2: 0,
-        totalTarikShopee1: 0, 
+        totalTarikShopee1: 0, // Dipisah per akun
         totalTarikShopee2: 0 
     };
 
@@ -811,6 +811,7 @@ function renderLaporanKas() {
         if (masuk > 0) {
             if (kategori === "saldo awal") data.saldoAwal += masuk;
             else if (kategori === "penjualan") {
+                // Deteksi penarikan dana spesifik
                 if (keterangan.includes("tarik dana shopee1")) data.totalTarikShopee1 += masuk;
                 else if (keterangan.includes("tarik dana shopee2")) data.totalTarikShopee2 += masuk;
                 else data.penjualanLangsung += masuk;
@@ -838,7 +839,7 @@ function renderLaporanKas() {
         data.sisaPiutang += parseFloat(row["Sisa Piutang"] || row["Sisa"] || 0);
     });
 
-    // 3. Hitung Saldo Shopee
+    // 3. Hitung Saldo Shopee (Fungsi internal untuk efisiensi)
     const hitungNetIncome = (dataArray) => {
         if (!dataArray || !Array.isArray(dataArray)) return 0;
         return dataArray.reduce((acc, s) => {
@@ -856,10 +857,10 @@ function renderLaporanKas() {
     const totalA = data.saldoAwal;
     const omsetBruto = data.penjualanLangsung + (data.totalTagihanPiutang - data.totalDPPiutang);
     const totalB = omsetBruto - data.sisaPiutang;
-    const totalC = data.totalTarikShopee1 + data.totalTarikShopee2 + saldoShopeeBelumTarik;
+    const totalC = data.totalTarikShopee1 + data.totalTarikShopee2 + data.saldoShopee1 + data.saldoShopee2;
     const totalD = data.operasional + data.pembelian;
 
-    container.innerHTML = `
+container.innerHTML = `
         <div class="space-y-4 sm:space-y-6 animate-fade col-span-full">
             <div class="bg-gradient-to-br from-blue-600 to-indigo-700 p-6 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] text-white shadow-2xl text-center">
                 <p class="text-[9px] sm:text-xs font-bold uppercase opacity-80 mb-1">Total Saldo Kas (Tunai + Bank)</p>
@@ -873,87 +874,89 @@ function renderLaporanKas() {
             <div class="bg-white rounded-2xl sm:rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
                 <table class="w-full text-left">
                     <tbody class="divide-y divide-slate-50">
-                        <tr class="bg-slate-800 text-slate-300">
-                            <td class="p-3 px-4 text-[9px] sm:text-[10px] uppercase font-bold tracking-widest">Total Saldo Shopee</td>
-                            <td class="p-3 px-4 text-right text-xs sm:text-sm font-bold">${formatIDR(saldoShopeeBelumTarik)}</td>
-                        </tr>
-                        <tr class="bg-slate-900 text-white font-black border-b-2 border-slate-700">
-                            <td class="p-4 text-[10px] sm:text-xs uppercase tracking-widest leading-tight">
-                                Total Aset <br> 
-                                <span class="text-[8px] sm:text-[9px] opacity-70 font-medium">(Kas + Shopee)</span>
-                            </td>
-                            <td class="p-4 text-right text-sm sm:text-lg">${formatIDR(totalAsetKeseluruhan)}</td>
-                        </tr>
-
-                        <tr class="h-4 bg-transparent">
-                            <td colspan="2"></td>
-                        </tr>
-
-                        <tr class="bg-slate-50 font-black border-t border-slate-200">
-                            <td class="p-3 sm:p-4 text-[9px] sm:text-[10px] text-slate-500 uppercase font-bold">A. Total Saldo Awal</td>
-                            <td class="p-3 sm:p-4 text-right text-xs sm:text-sm text-slate-800">${formatIDR(totalA)}</td>
-                        </tr>
                         
-                        <tr class="bg-blue-50/50">
-                            <td colspan="2" class="p-3 sm:p-4 text-[9px] sm:text-[10px] font-black text-blue-600 uppercase tracking-wider">B. Pendapatan (Offline)</td>
-                        </tr>
-                        <tr>
-                            <td class="p-3 sm:p-4 text-xs sm:text-sm text-slate-600 pl-6 sm:pl-8 font-semibold">Penjualan Toko & Proyek</td>
-                            <td class="p-3 sm:p-4 text-right text-xs sm:text-sm font-bold text-slate-700">${formatIDR(omsetBruto)}</td>
-                        </tr>
-                        <tr>
-                            <td class="p-2 sm:p-4 text-[10px] sm:text-[11px] text-red-400 pl-8 sm:pl-12 italic">Sisa Piutang</td>
-                            <td class="p-2 sm:p-4 text-right text-xs sm:text-sm font-medium text-red-400">-${formatIDR(data.sisaPiutang)}</td>
-                        </tr>
-                        <tr class="font-black bg-blue-100/40">
-                            <td class="p-3 sm:p-4 text-[9px] sm:text-[10px] text-blue-800 uppercase pl-6 sm:pl-8 text-right">Total Pendapatan (B)</td>
-                            <td class="p-3 sm:p-4 text-right text-xs sm:text-sm text-blue-800">${formatIDR(totalB)}</td>
-                        </tr>
+                       <tr class="bg-slate-800 text-slate-300">
+        <td class="p-3 px-4 text-[9px] sm:text-[10px] uppercase font-bold tracking-widest">Total Saldo Shopee</td>
+        <td class="p-3 px-4 text-right text-xs sm:text-sm font-bold">${formatIDR(saldoShopeeBelumTarik)}</td>
+    </tr>
+    <tr class="bg-slate-900 text-white font-black border-b-2 border-slate-700">
+        <td class="p-4 text-[10px] sm:text-xs uppercase tracking-widest leading-tight">
+            Total Aset <br> 
+            <span class="text-[8px] sm:text-[9px] opacity-70 font-medium">(Kas + Shopee)</span>
+        </td>
+        <td class="p-4 text-right text-sm sm:text-lg">${formatIDR(totalAsetKeseluruhan)}</td>
+    </tr>
 
-                        <tr class="bg-orange-50/50">
-                            <td colspan="2" class="p-3 sm:p-4 text-[9px] sm:text-[10px] font-black text-orange-600 uppercase tracking-wider">C. Platform Online (Shopee)</td>
-                        </tr>
-                        <tr class="text-[10px] sm:text-[11px]">
-                            <td class="p-3 pl-6 sm:pl-8 text-slate-500">Pencairan Shopee 1</td>
-                            <td class="p-3 text-right font-bold text-orange-600">+${formatIDR(data.totalTarikShopee1)}</td>
-                        </tr>
-                        <tr class="text-[10px] sm:text-[11px]">
-                            <td class="p-3 pl-6 sm:pl-8 text-slate-500">Pencairan Shopee 2</td>
-                            <td class="p-3 text-right font-bold text-orange-600">+${formatIDR(data.totalTarikShopee2)}</td>
-                        </tr>
-                        <tr class="text-[10px] sm:text-[11px]">
-                            <td class="p-3 pl-6 sm:pl-8 text-slate-500 italic">Saldo Shopee 1 (Belum Tarik)</td>
-                            <td class="p-3 text-right text-orange-600">${formatIDR(data.saldoShopee1)}</td>
-                        </tr>
-                        <tr class="text-[10px] sm:text-[11px]">
-                            <td class="p-3 pl-6 sm:pl-8 text-slate-500 italic border-b border-slate-50">Saldo Shopee 2 (Belum Tarik)</td>
-                            <td class="p-3 text-right text-orange-600 border-b border-slate-50">${formatIDR(data.saldoShopee2)}</td>
-                        </tr>
-                        <tr class="font-black bg-orange-100/40">
-                            <td class="p-4 text-[9px] sm:text-[10px] text-orange-800 uppercase pl-6 sm:pl-8 text-right">Total Nilai Shopee (C)</td>
-                            <td class="p-4 text-right text-xs sm:text-sm text-orange-800">${formatIDR(totalC)}</td>
-                        </tr>
+    <tr class="h-4 bg-transparent">
+        <td colspan="2"></td>
+    </tr>
 
-                        <tr class="bg-red-50/50">
-                            <td colspan="2" class="p-3 sm:p-4 text-[9px] sm:text-[10px] font-black text-red-600 uppercase tracking-wider">D. Pengeluaran</td>
-                        </tr>
-                        <tr>
-                            <td class="p-3 sm:p-4 text-xs sm:text-sm text-slate-600 pl-6 sm:pl-8 font-medium">Biaya Operasional</td>
-                            <td class="p-3 sm:p-4 text-right text-xs sm:text-sm font-bold text-red-500">-${formatIDR(data.operasional)}</td>
-                        </tr>
-                        <tr>
-                            <td class="p-3 sm:p-4 text-xs sm:text-sm text-slate-600 pl-6 sm:pl-8 font-medium">Pembelian Stok & Alat</td>
-                            <td class="p-3 sm:p-4 text-right text-xs sm:text-sm font-bold text-red-500">-${formatIDR(data.pembelian)}</td>
-                        </tr>
-                        <tr class="font-black bg-red-100/40">
-                            <td class="p-3 sm:p-4 text-[9px] sm:text-[10px] text-red-800 uppercase pl-6 sm:pl-8 text-right">Total Pengeluaran (D)</td>
-                            <td class="p-3 sm:p-4 text-right text-xs sm:text-sm text-red-800">${formatIDR(totalD)}</td>
-                        </tr>
+<tr class="bg-slate-100/80 border-y border-slate-200">
+    <td class="p-3 sm:p-4 text-[10px] sm:text-xs text-slate-600 uppercase font-bold tracking-tight">A. Total Saldo Awal</td>
+    <td class="p-3 sm:p-4 text-right text-sm sm:text-base font-black text-slate-900">${formatIDR(totalA)}</td>
+</tr>
+
+<tr class="bg-blue-50 border-t border-blue-100">
+    <td colspan="2" class="p-3 sm:p-4 text-[10px] sm:text-xs font-black text-blue-700 uppercase tracking-wider">B. Pendapatan (Offline)</td>
+</tr>
+<tr class="border-b border-slate-50">
+    <td class="p-3 sm:p-4 text-xs sm:text-sm text-slate-700 pl-6 sm:pl-8 font-medium">Penjualan Toko & Proyek</td>
+    <td class="p-3 sm:p-4 text-right text-xs sm:text-sm font-bold text-slate-800">${formatIDR(omsetBruto)}</td>
+</tr>
+<tr class="border-b border-slate-50">
+    <td class="p-2 sm:p-4 text-[10px] sm:text-[11px] text-red-500 pl-8 sm:pl-12 italic font-medium underline decoration-red-200 underline-offset-4">Sisa Piutang</td>
+    <td class="p-2 sm:p-4 text-right text-xs sm:text-sm font-semibold text-red-500">-${formatIDR(data.sisaPiutang)}</td>
+</tr>
+<tr class="bg-blue-600">
+    <td class="p-3 sm:p-4 text-[10px] text-white uppercase pl-6 sm:pl-8 text-right font-bold">Total Pendapatan (B)</td>
+    <td class="p-3 sm:p-4 text-right text-sm sm:text-base font-black text-white">${formatIDR(totalB)}</td>
+</tr>
+
+<tr class="bg-orange-50 border-t border-orange-100">
+    <td colspan="2" class="p-3 sm:p-4 text-[10px] sm:text-xs font-black text-orange-700 uppercase tracking-wider">C. Platform Online (Shopee)</td>
+</tr>
+<tr class="border-b border-orange-50/50">
+    <td class="p-3 pl-8 text-[11px] sm:text-xs text-slate-600">Pencairan Shopee 1</td>
+    <td class="p-3 text-right font-bold text-orange-600">+${formatIDR(data.totalTarikShopee1)}</td>
+</tr>
+<tr class="border-b border-orange-50/50">
+    <td class="p-3 pl-8 text-[11px] sm:text-xs text-slate-600">Pencairan Shopee 2</td>
+    <td class="p-3 text-right font-bold text-orange-600">+${formatIDR(data.totalTarikShopee2)}</td>
+</tr>
+<tr class="border-b border-orange-50/50">
+    <td class="p-2 pl-10 text-[10px] text-slate-400 italic">Saldo Shopee 1 (Belum Tarik)</td>
+    <td class="p-2 text-right text-[11px] font-medium text-orange-400">${formatIDR(data.saldoShopee1)}</td>
+</tr>
+<tr class="border-b border-orange-50/50">
+    <td class="p-2 pl-10 text-[10px] text-slate-400 italic">Saldo Shopee 2 (Belum Tarik)</td>
+    <td class="p-2 text-right text-[11px] font-medium text-orange-400">${formatIDR(data.saldoShopee2)}</td>
+</tr>
+<tr class="bg-orange-500">
+    <td class="p-3 sm:p-4 text-[10px] text-white uppercase pl-8 text-right font-bold">Total Nilai Shopee (C)</td>
+    <td class="p-3 sm:p-4 text-right text-sm sm:text-base font-black text-white">${formatIDR(totalC)}</td>
+</tr>
+
+<tr class="bg-red-50 border-t border-red-100">
+    <td colspan="2" class="p-3 sm:p-4 text-[10px] sm:text-xs font-black text-red-700 uppercase tracking-wider">D. Pengeluaran</td>
+</tr>
+<tr class="border-b border-slate-50">
+    <td class="p-3 sm:p-4 text-xs sm:text-sm text-slate-700 pl-6 sm:pl-8 font-medium">Biaya Operasional</td>
+    <td class="p-3 sm:p-4 text-right text-xs sm:text-sm font-bold text-red-600">-${formatIDR(data.operasional)}</td>
+</tr>
+<tr class="border-b border-slate-50">
+    <td class="p-3 sm:p-4 text-xs sm:text-sm text-slate-700 pl-6 sm:pl-8 font-medium">Pembelian Stok & Alat</td>
+    <td class="p-3 sm:p-4 text-right text-xs sm:text-sm font-bold text-red-600">-${formatIDR(data.pembelian)}</td>
+</tr>
+<tr class="bg-red-600">
+    <td class="p-3 sm:p-4 text-[10px] text-white uppercase pl-6 sm:pl-8 text-right font-bold">Total Pengeluaran (D)</td>
+    <td class="p-3 sm:p-4 text-right text-sm sm:text-base font-black text-white">${formatIDR(totalD)}</td>
+</tr>
                     </tbody>
                 </table>
             </div>
         </div>
-    \`;
+    `;
+  
 }
 
 async function processPembelianExcel(file) {
