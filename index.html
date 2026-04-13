@@ -668,7 +668,7 @@ function renderLabaRugi() {
             if (cat.includes("pengembalian dana")) {
                 pengembalian += parseFloat(r["Keluar"]) || 0;
             } else {
-                if (!cat.includes("cicilan piutang")) {
+                if (!cat.includes("pelunasan piutang")) {
                     pendapatanTunai += parseFloat(r["Masuk"]) || 0;
                 }
                 beban += parseFloat(r["Keluar"]) || 0;
