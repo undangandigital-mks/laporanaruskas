@@ -802,23 +802,32 @@ function renderLabaRugi() {
 }
 
 function renderLaporanKas() {
-   const container = document.getElementById('kasContent'); 
+ const container = document.getElementById('kasContent'); 
     const barangContainer = document.getElementById('barangTerjualContent');
-    const summaryContainer = document.getElementById('summaryBarangTerjual');
     
     let data = { 
-        saldoAwal: 0, penjualanLangsung: 0, cicilanPiutang: 0,
-        pembelian: 0, operasional: 0, bayarUtang: 0,
-        totalShopee: 0, shopeeSummary: { "tarik dana shopee1": 0, "tarik dana shopee2": 0 },
-        cash: 0, rekening: 0, saldo: 0, sisaPiutang: 0, sisaUtang: 0
+        saldoAwal: 0, 
+        penjualanLangsung: 0, 
+        cicilanPiutang: 0,
+        pembelian: 0, 
+        operasional: 0, 
+        bayarUtang: 0,
+        totalShopee: 0, 
+        shopeeSummary: {
+            "tarik dana shopee1": 0,
+            "tarik dana shopee2": 0
+        },
+        cash: 0, 
+        rekening: 0,
+        saldo: 0, 
+        sisaPiutang: 0,
+        sisaUtang: 0
     };
 
-    // Variabel untuk Barang Terjual & Omset
+    // Objek untuk menyimpan akumulasi jumlah barang terjual
     let barangTerjualMap = {};
-    let grandTotalOmset = 0;
-    let grandTotalQty = 0;
 
-    // 1. Process Transaksi
+    // 1. Process Transaksi & Hitung Barang Terjual
     db.transaksi.forEach(row => {
         const masuk = parseFloat(row["Masuk"]) || 0;
         const keluar = parseFloat(row["Keluar"]) || 0;
@@ -838,7 +847,7 @@ function renderLaporanKas() {
                     data.penjualanLangsung += masuk;
                 }
 
-                // HITUNG BARANG & OMSET DARI JSON
+                // LOGIKA BARU: Ambil data barang dari Detail JSON
                 if (row["Detail JSON"]) {
                     try {
                         const items = JSON.parse(row["Detail JSON"]);
@@ -846,20 +855,12 @@ function renderLaporanKas() {
                             items.forEach(item => {
                                 const nama = item.nama || "Tanpa Nama";
                                 const qty = parseFloat(item.qty) || 0;
-                                const harga = parseFloat(item.harga) || 0;
-                                const subtotal = qty * harga;
-
-                                if (!barangTerjualMap[nama]) {
-                                    barangTerjualMap[nama] = { qty: 0, omset: 0 };
-                                }
-                                barangTerjualMap[nama].qty += qty;
-                                barangTerjualMap[nama].omset += subtotal;
-                                
-                                grandTotalQty += qty;
-                                grandTotalOmset += subtotal;
+                                barangTerjualMap[nama] = (barangTerjualMap[nama] || 0) + qty;
                             });
                         }
-                    } catch (e) {}
+                    } catch (e) {
+                        console.error("Gagal parse detail barang:", e);
+                    }
                 }
             } 
             else if (kategori === "cicilan piutang") {
@@ -879,27 +880,23 @@ function renderLaporanKas() {
         } else {
             data.cash += netto;
         }
+        
         data.saldo += netto;
     });
 
-    // 2. Process Piutang & Utang
-    db.piutang.forEach(row => { data.sisaPiutang += parseFloat(row["Sisa Piutang"] || row["Sisa"] || 0); });
-    db.utang.forEach(row => { data.sisaUtang += parseFloat(row["Sisa Utang"] || row["Total Utang"] || row["Sisa"] || 0); });
+    // 2. Process Piutang & Utang (Sama seperti sebelumnya)
+    db.piutang.forEach(row => {
+        data.sisaPiutang += parseFloat(row["Sisa Piutang"] || row["Sisa"] || 0);
+    });
+
+    db.utang.forEach(row => {
+        data.sisaUtang += parseFloat(row["Sisa Utang"] || row["Total Utang"] || row["Sisa"] || 0);
+    });
 
     const totalPendapatanB = data.penjualanLangsung + data.cicilanPiutang + data.totalShopee;
     const totalPengeluaranC = data.operasional + data.pembelian + data.bayarUtang;
-    
-    // 3. Render Ringkasan (Qty & Omset) di Header Kanan
-    if (summaryContainer) {
-        summaryContainer.innerHTML = `
-            <div class="flex gap-2">
-                <span class="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg border border-blue-100">${grandTotalQty} Pcs</span>
-                <span class="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100">${formatIDR(grandTotalOmset)}</span>
-            </div>
-        `;
-    }
 
-    // 4. Render Laporan Kas (Sisi Kiri)
+    // 3. Render Laporan Kas ke Container Kiri
     container.innerHTML = `
         <div class="space-y-4 animate-fade">
             <div class="bg-gradient-to-br from-slate-800 to-slate-950 p-7 rounded-[2.5rem] text-white shadow-2xl text-center">
@@ -932,6 +929,10 @@ function renderLaporanKas() {
                             <td class="px-6 py-3 text-xs text-slate-600 font-black italic text-orange-600">Tarik Dana Shopee</td>
                             <td class="px-4 py-3 text-right text-xs font-black text-orange-600">${formatIDR(data.totalShopee)}</td>
                         </tr>
+                        <tr>
+                            <td class="px-6 py-2 text-xs text-slate-600 font-medium">Masuk Cicilan Piutang</td>
+                            <td class="px-4 py-2 text-right text-xs font-bold text-slate-800">${formatIDR(data.cicilanPiutang)}</td>
+                        </tr>
                         <tr class="bg-blue-600 text-white font-bold">
                             <td class="px-6 py-3 text-[10px] uppercase text-right font-bold tracking-widest text-white">Total Pendapatan (B)</td>
                             <td class="px-4 py-3 text-right text-sm font-black">${formatIDR(totalPendapatanB)}</td>
@@ -943,6 +944,10 @@ function renderLaporanKas() {
                         <tr>
                             <td class="px-6 py-2 text-xs text-slate-600 font-bold text-red-600">Bayar Utang</td>
                             <td class="px-4 py-2 text-right text-xs font-bold text-red-600">-${formatIDR(data.bayarUtang)}</td>
+                        </tr>
+                        <tr class="bg-red-600 text-white font-bold">
+                            <td class="px-6 py-3 text-[10px] uppercase text-right font-bold tracking-widest text-white">Total Pengeluaran (C)</td>
+                            <td class="px-4 py-3 text-right text-sm font-black">${formatIDR(totalPengeluaranC)}</td>
                         </tr>
                     </tbody>
                 </table>
