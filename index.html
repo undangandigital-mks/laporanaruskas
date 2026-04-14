@@ -232,16 +232,21 @@
 
    <div id="kasPage" class="page-content hidden p-2 md:p-4">
     <h2 class="text-xl font-bold mb-4 text-slate-800 px-2">Analisis Kas & Penjualan</h2>
+    
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div id="kasContent" class="lg:col-span-2 space-y-4"></div>
         
-        <div class="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden h-fit">
-            <div class="bg-slate-50 px-6 py-4 border-b border-slate-100">
-                <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest">Barang Terjual (Top 10)</h3>
+        <div id="kasContent" class="lg:col-span-2 space-y-4">
+            </div>
+
+        <div class="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden h-fit sticky top-4">
+            <div class="bg-slate-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
+                <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Barang Terjual (Top 10)</h3>
+                <i class="fas fa-fire text-orange-500 text-xs"></i>
             </div>
             <div id="barangTerjualContent" class="p-2">
                 </div>
         </div>
+        
     </div>
 </div>
 
@@ -790,216 +795,195 @@ function renderLabaRugi() {
     `;
 }
 
- function renderLaporanKas() {
-            const container = document.getElementById('kasContent'); 
-            let data = { 
-                saldoAwal: 0, 
-                penjualanLangsung: 0, 
-                cicilanPiutang: 0,
-                pembelian: 0, 
-                operasional: 0, 
-                bayarUtang: 0,
-                totalShopee: 0, 
-                shopeeSummary: {
-                    "tarik dana shopee1": 0,
-                    "tarik dana shopee2": 0
-                },
-                cash: 0, 
-                rekening: 0,
-                saldo: 0, 
-                sisaPiutang: 0,
-                sisaUtang: 0
-            };
+function renderLaporanKas() {
+    const container = document.getElementById('kasContent'); 
+    const barangContainer = document.getElementById('barangTerjualContent');
+    
+    let data = { 
+        saldoAwal: 0, 
+        penjualanLangsung: 0, 
+        cicilanPiutang: 0,
+        pembelian: 0, 
+        operasional: 0, 
+        bayarUtang: 0,
+        totalShopee: 0, 
+        shopeeSummary: {
+            "tarik dana shopee1": 0,
+            "tarik dana shopee2": 0
+        },
+        cash: 0, 
+        rekening: 0,
+        saldo: 0, 
+        sisaPiutang: 0,
+        sisaUtang: 0
+    };
 
-            // Process Transaksi
-            db.transaksi.forEach(row => {
-                const masuk = parseFloat(row["Masuk"]) || 0;
-                const keluar = parseFloat(row["Keluar"]) || 0;
-                const kategori = String(row["Kategori"] || "").toLowerCase().trim();
-                const keterangan = String(row["Keterangan"] || "").toLowerCase().trim();
-                const metode = String(row["Metode"] || "cash").toLowerCase();
+    // Objek untuk menyimpan akumulasi jumlah barang terjual
+    let barangTerjualMap = {};
 
-                if (masuk > 0) {
-                    if (kategori === "saldo awal") {
-                        data.saldoAwal += masuk;
-                    } 
-                    else if (kategori === "penjualan") {
-                        if (keterangan === "tarik dana shopee1" || keterangan === "tarik dana shopee2") {
-                            data.totalShopee += masuk;
-                            data.shopeeSummary[keterangan] += masuk;
-                        } else if (!keterangan.includes("shopee")) {
-                            data.penjualanLangsung += masuk;
+    // 1. Process Transaksi & Hitung Barang Terjual
+    db.transaksi.forEach(row => {
+        const masuk = parseFloat(row["Masuk"]) || 0;
+        const keluar = parseFloat(row["Keluar"]) || 0;
+        const kategori = String(row["Kategori"] || "").toLowerCase().trim();
+        const keterangan = String(row["Keterangan"] || "").toLowerCase().trim();
+        const metode = String(row["Metode"] || "cash").toLowerCase();
+
+        if (masuk > 0) {
+            if (kategori === "saldo awal") {
+                data.saldoAwal += masuk;
+            } 
+            else if (kategori === "penjualan") {
+                if (keterangan === "tarik dana shopee1" || keterangan === "tarik dana shopee2") {
+                    data.totalShopee += masuk;
+                    data.shopeeSummary[keterangan] += masuk;
+                } else if (!keterangan.includes("shopee")) {
+                    data.penjualanLangsung += masuk;
+                }
+
+                // LOGIKA BARU: Ambil data barang dari Detail JSON
+                if (row["Detail JSON"]) {
+                    try {
+                        const items = JSON.parse(row["Detail JSON"]);
+                        if (Array.isArray(items)) {
+                            items.forEach(item => {
+                                const nama = item.nama || "Tanpa Nama";
+                                const qty = parseFloat(item.qty) || 0;
+                                barangTerjualMap[nama] = (barangTerjualMap[nama] || 0) + qty;
+                            });
                         }
-                    } 
-                    else if (kategori === "cicilan piutang") {
-                        data.cicilanPiutang += masuk;
+                    } catch (e) {
+                        console.error("Gagal parse detail barang:", e);
                     }
                 }
+            } 
+            else if (kategori === "cicilan piutang") {
+                data.cicilanPiutang += masuk;
+            }
+        }
 
-                if (keluar > 0) {
-                    if (kategori === "operasional") data.operasional += keluar;
-                    else if (kategori === "pembelian") data.pembelian += keluar;
-                    else if (kategori === "bayar utang") data.bayarUtang += keluar;
-                }
+        if (keluar > 0) {
+            if (kategori === "operasional") data.operasional += keluar;
+            else if (kategori === "pembelian") data.pembelian += keluar;
+            else if (kategori === "bayar utang") data.bayarUtang += keluar;
+        }
 
-                const netto = masuk - keluar;
-                if (metode.includes("rek") || metode.includes("bank") || metode.includes("tf")) {
-                    data.rekening += netto;
-                } else {
-                    data.cash += netto;
-                }
-                
-                data.saldo += netto;
-            });
+        const netto = masuk - keluar;
+        if (metode.includes("rek") || metode.includes("bank") || metode.includes("tf")) {
+            data.rekening += netto;
+        } else {
+            data.cash += netto;
+        }
+        
+        data.saldo += netto;
+    });
 
-            // Process Piutang
-            db.piutang.forEach(row => {
-                data.sisaPiutang += parseFloat(row["Sisa Piutang"] || row["Sisa"] || 0);
-            });
+    // 2. Process Piutang & Utang (Sama seperti sebelumnya)
+    db.piutang.forEach(row => {
+        data.sisaPiutang += parseFloat(row["Sisa Piutang"] || row["Sisa"] || 0);
+    });
 
-            // Process Utang
-            db.utang.forEach(row => {
-                data.sisaUtang += parseFloat(row["Sisa Utang"] || row["Total Utang"] || row["Sisa"] || 0);
-            });
+    db.utang.forEach(row => {
+        data.sisaUtang += parseFloat(row["Sisa Utang"] || row["Total Utang"] || row["Sisa"] || 0);
+    });
 
-            const totalPendapatanB = data.penjualanLangsung + data.cicilanPiutang + data.totalShopee;
-            const totalPengeluaranC = data.operasional + data.pembelian + data.bayarUtang;
+    const totalPendapatanB = data.penjualanLangsung + data.cicilanPiutang + data.totalShopee;
+    const totalPengeluaranC = data.operasional + data.pembelian + data.bayarUtang;
 
-            container.innerHTML = `
-                <div class="space-y-4 animate-fade">
-                    <!-- Kartu Saldo -->
-                    <div class="bg-gradient-to-br from-slate-800 to-slate-950 p-7 rounded-[2.5rem] text-white shadow-2xl text-center">
-                        <p class="text-[10px] font-bold uppercase opacity-50 mb-1 tracking-widest">Saldo Kas Aktif</p>
-                        <h2 class="text-4xl font-black">${formatIDR(data.saldo)}</h2>
-                        <div class="mt-6 pt-5 border-t border-white/10 grid grid-cols-2">
-                            <div class="border-r border-white/10 text-center">
-                                <p class="text-[9px] opacity-50 uppercase">Tunai</p>
-                                <p class="text-xs font-bold">${formatIDR(data.cash)}</p>
-                            </div>
-                            <div class="text-center">
-                                <p class="text-[9px] opacity-50 uppercase">Rekening</p>
-                                <p class="text-xs font-bold">${formatIDR(data.rekening)}</p>
-                            </div>
-                        </div>
+    // 3. Render Laporan Kas ke Container Kiri
+    container.innerHTML = `
+        <div class="space-y-4 animate-fade">
+            <div class="bg-gradient-to-br from-slate-800 to-slate-950 p-7 rounded-[2.5rem] text-white shadow-2xl text-center">
+                <p class="text-[10px] font-bold uppercase opacity-50 mb-1 tracking-widest">Saldo Kas Aktif</p>
+                <h2 class="text-4xl font-black">${formatIDR(data.saldo)}</h2>
+                <div class="mt-6 pt-5 border-t border-white/10 grid grid-cols-2">
+                    <div class="border-r border-white/10 text-center">
+                        <p class="text-[9px] opacity-50 uppercase">Tunai</p>
+                        <p class="text-xs font-bold">${formatIDR(data.cash)}</p>
                     </div>
-
-                    <!-- Rincian Tabel -->
-                    <div class="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
-                        <table class="w-full text-left border-collapse">
-                            <tbody class="divide-y divide-slate-50">
-                                <!-- Bagian Saldo Awal -->
-                                <tr class="bg-slate-800 text-white">
-                                    <td class="p-4 text-[11px] uppercase font-black tracking-wider">Saldo Awal (A)</td>
-                                    <td class="p-4 text-right text-sm font-black">${formatIDR(data.saldoAwal)}</td>
-                                </tr>
-
-                                <tr>
-                                    <td class="px-6 py-2 text-xs text-slate-600 font-medium italic">Penjualan Toko (Offline)</td>
-                                    <td class="px-4 py-2 text-right text-xs font-bold text-slate-800">${formatIDR(data.penjualanLangsung)}</td>
-                                </tr>
-                                <tr>
-                                    <td class="px-6 py-3 text-xs text-slate-600 font-black italic text-orange-600">Tarik Dana Shopee</td>
-                                    <td class="px-4 py-3 text-right text-xs font-black text-orange-600">${formatIDR(data.totalShopee)}</td>
-                                </tr>
-                                
-                                <tr class="bg-orange-50/20">
-                                    <td colspan="2" class="pl-10 pr-4 py-1.5 text-[10px] border-l-2 border-orange-100 uppercase">
-                                        <span class="text-slate-400 font-medium italic">Tarik Dana Shopee1: </span>
-                                        <span class="text-slate-500 font-bold ml-1">${formatIDR(data.shopeeSummary["tarik dana shopee1"])}</span>
-                                    </td>
-                                </tr>
-                                
-                                <tr class="bg-orange-50/20">
-                                    <td colspan="2" class="pl-10 pr-4 py-1.5 text-[10px] border-l-2 border-orange-100 uppercase">
-                                        <span class="text-slate-400 font-medium italic">Tarik Dana Shopee2: </span>
-                                        <span class="text-slate-500 font-bold ml-1">${formatIDR(data.shopeeSummary["tarik dana shopee2"])}</span>
-                                    </td>
-                                </tr>
-
-                                <tr>
-                                    <td class="px-6 py-2 text-xs text-slate-600 font-medium">Masuk Cicilan Piutang</td>
-                                    <td class="px-4 py-2 text-right text-xs font-bold text-slate-800">${formatIDR(data.cicilanPiutang)}</td>
-                                </tr>
-                                <tr class="bg-blue-600 text-white font-bold">
-                                    <td class="px-6 py-3 text-[10px] uppercase text-right font-bold tracking-widest text-white">Total Pendapatan (B)</td>
-                                    <td class="px-4 py-3 text-right text-sm font-black">${formatIDR(totalPendapatanB)}</td>
-                                </tr>
-                                <tr>
-                                    <td class="px-6 py-2 text-xs text-slate-600 font-medium italic text-red-600">Operasional</td>
-                                    <td class="px-4 py-2 text-right text-xs font-bold text-red-600">-${formatIDR(data.operasional)}</td>
-                                </tr>
-                                <tr>
-                                    <td class="px-6 py-2 text-xs text-slate-600 font-medium italic text-red-600">Pembelian Stok</td>
-                                    <td class="px-4 py-2 text-right text-xs font-bold text-red-600">-${formatIDR(data.pembelian)}</td>
-                                </tr>
-                                <tr>
-                                    <td class="px-6 py-2 text-xs text-slate-600 font-bold text-red-600">Bayar Utang</td>
-                                    <td class="px-4 py-2 text-right text-xs font-bold text-red-600">-${formatIDR(data.bayarUtang)}</td>
-                                </tr>
-                                <tr class="bg-red-600 text-white font-bold">
-                                    <td class="px-6 py-3 text-[10px] uppercase text-right font-bold tracking-widest text-white">Total Pengeluaran (C)</td>
-                                    <td class="px-4 py-3 text-right text-sm font-black">${formatIDR(totalPengeluaranC)}</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <!-- Footer Cards (Piutang & Utang) -->
-                    <div class="grid grid-cols-2 gap-3">
-                        <div class="bg-white p-4 rounded-[1.5rem] border border-slate-100 shadow-sm">
-                            <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Piutang Aktif</p>
-                            <p class="text-xs font-black text-red-500">${formatIDR(data.sisaPiutang)}</p>
-                        </div>
-                        <div class="bg-white p-4 rounded-[1.5rem] border border-slate-100 shadow-sm">
-                            <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Utang Aktif</p>
-                            <p class="text-xs font-black text-orange-600">${formatIDR(data.sisaUtang)}</p>
-                        </div>
+                    <div class="text-center">
+                        <p class="text-[9px] opacity-50 uppercase">Rekening</p>
+                        <p class="text-xs font-bold">${formatIDR(data.rekening)}</p>
                     </div>
                 </div>
-            `;
-     // --- LOGIKA TAMBAHAN: HITUNG BARANG TERJUAL ---
-let pen jualanBarang = {};
+            </div>
 
-db.transaksi.forEach(row => {
-    const kategori = String(row["Kategori"] || "").toLowerCase().trim();
-    // Ambil hanya dari kategori penjualan dan yang memiliki detail barang
-    if (kategori === "penjualan" && row["Detail JSON"]) {
-        try {
-            const items = JSON.parse(row["Detail JSON"]);
-            if (Array.isArray(items)) {
-                items.forEach(item => {
-                    const nama = item.nama || "Tanpa Nama";
-                    const qty = parseFloat(item.qty) || 0;
-                    penjualanBarang[nama] = (penjualanBarang[nama] || 0) + qty;
-                });
-            }
-        } catch (e) { console.error("Error parse detail barang", e); }
-    }
-});
+            <div class="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
+                <table class="w-full text-left border-collapse">
+                    <tbody class="divide-y divide-slate-50">
+                        <tr class="bg-slate-800 text-white">
+                            <td class="p-4 text-[11px] uppercase font-black tracking-wider">Saldo Awal (A)</td>
+                            <td class="p-4 text-right text-sm font-black">${formatIDR(data.saldoAwal)}</td>
+                        </tr>
+                        <tr>
+                            <td class="px-6 py-2 text-xs text-slate-600 font-medium italic">Penjualan Toko (Offline)</td>
+                            <td class="px-4 py-2 text-right text-xs font-bold text-slate-800">${formatIDR(data.penjualanLangsung)}</td>
+                        </tr>
+                        <tr>
+                            <td class="px-6 py-3 text-xs text-slate-600 font-black italic text-orange-600">Tarik Dana Shopee</td>
+                            <td class="px-4 py-3 text-right text-xs font-black text-orange-600">${formatIDR(data.totalShopee)}</td>
+                        </tr>
+                        <tr>
+                            <td class="px-6 py-2 text-xs text-slate-600 font-medium">Masuk Cicilan Piutang</td>
+                            <td class="px-4 py-2 text-right text-xs font-bold text-slate-800">${formatIDR(data.cicilanPiutang)}</td>
+                        </tr>
+                        <tr class="bg-blue-600 text-white font-bold">
+                            <td class="px-6 py-3 text-[10px] uppercase text-right font-bold tracking-widest text-white">Total Pendapatan (B)</td>
+                            <td class="px-4 py-3 text-right text-sm font-black">${formatIDR(totalPendapatanB)}</td>
+                        </tr>
+                        <tr>
+                            <td class="px-6 py-2 text-xs text-slate-600 font-medium italic text-red-600">Operasional & Pembelian</td>
+                            <td class="px-4 py-2 text-right text-xs font-bold text-red-600">-${formatIDR(data.operasional + data.pembelian)}</td>
+                        </tr>
+                        <tr>
+                            <td class="px-6 py-2 text-xs text-slate-600 font-bold text-red-600">Bayar Utang</td>
+                            <td class="px-4 py-2 text-right text-xs font-bold text-red-600">-${formatIDR(data.bayarUtang)}</td>
+                        </tr>
+                        <tr class="bg-red-600 text-white font-bold">
+                            <td class="px-6 py-3 text-[10px] uppercase text-right font-bold tracking-widest text-white">Total Pengeluaran (C)</td>
+                            <td class="px-4 py-3 text-right text-sm font-black">${formatIDR(totalPengeluaranC)}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
 
-// Urutkan dari yang terbanyak
-const sortedBarang = Object.entries(penjualanBarang)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 10); // Ambil 10 teratas
-
-const barangContainer = document.getElementById('barangTerjualContent');
-if (sortedBarang.length > 0) {
-    barangContainer.innerHTML = `
-        <table class="w-full text-left">
-            <tbody class="divide-y divide-slate-50">
-                ${sortedBarang.map(([nama, qty]) => `
-                    <tr>
-                        <td class="px-4 py-3 text-[11px] font-medium text-slate-700 truncate max-w-[150px]">${nama}</td>
-                        <td class="px-4 py-3 text-right text-xs font-black text-blue-600">${qty} <span class="text-[9px] text-slate-400">pcs</span></td>
-                    </tr>
-                `).join('')}
-            </tbody>
-        </table>
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-white p-4 rounded-[1.5rem] border border-slate-100 shadow-sm text-center">
+                    <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Piutang Aktif</p>
+                    <p class="text-xs font-black text-red-500">${formatIDR(data.sisaPiutang)}</p>
+                </div>
+                <div class="bg-white p-4 rounded-[1.5rem] border border-slate-100 shadow-sm text-center">
+                    <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Utang Aktif</p>
+                    <p class="text-xs font-black text-orange-600">${formatIDR(data.sisaUtang)}</p>
+                </div>
+            </div>
+        </div>
     `;
-} else {
-    barangContainer.innerHTML = `<div class="p-6 text-center text-slate-400 text-xs italic">Belum ada data barang terjual</div>`;
-}
+
+    // 4. Render Daftar Barang Terjual ke Container Kanan
+    const sortedBarang = Object.entries(barangTerjualMap)
+        .sort((a, b) => b[1] - a[1]) // Urutkan dari terbanyak
+        .slice(0, 10); // Ambil Top 10
+
+    if (barangContainer) {
+        if (sortedBarang.length > 0) {
+            barangContainer.innerHTML = `
+                <table class="w-full text-left">
+                    <tbody class="divide-y divide-slate-50">
+                        ${sortedBarang.map(([nama, qty]) => `
+                            <tr>
+                                <td class="px-4 py-3 text-[11px] font-semibold text-slate-700 truncate max-w-[150px]">${nama}</td>
+                                <td class="px-4 py-3 text-right text-xs font-black text-blue-600">${qty} <span class="text-[9px] text-slate-400 font-normal">Pcs</span></td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        } else {
+            barangContainer.innerHTML = `<div class="p-8 text-center text-slate-400 text-[10px] italic">Tidak ada data barang terjual</div>`;
         }
+    }
+}
 async function processPembelianExcel(file) {
     if (!file) return;
     
