@@ -463,6 +463,7 @@ async function processShopeeExcel(file, actionTarget) {
         db.transaksi = results[0];
         db.piutang = results[1];
         db.stok = results[2];
+        db.utang = results[3];
 
         // 2. AMBIL DATA SHOPEE (Akun 1 & Akun 2)
         // Kita gunakan Promise.all agar pengambilan data Shopee 1 dan 2 berjalan bersamaan (lebih cepat)
