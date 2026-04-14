@@ -802,7 +802,7 @@ function renderLabaRugi() {
 }
 
 function renderLaporanKas() {
-    const container = document.getElementById('kasContent'); 
+   const container = document.getElementById('kasContent'); 
     const barangContainer = document.getElementById('barangTerjualContent');
     const summaryContainer = document.getElementById('summaryBarangTerjual');
     
@@ -888,7 +888,7 @@ function renderLaporanKas() {
 
     const totalPendapatanB = data.penjualanLangsung + data.cicilanPiutang + data.totalShopee;
     const totalPengeluaranC = data.operasional + data.pembelian + data.bayarUtang;
-
+    
     // 3. Render Ringkasan (Qty & Omset) di Header Kanan
     if (summaryContainer) {
         summaryContainer.innerHTML = `
