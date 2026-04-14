@@ -230,11 +230,20 @@
         </div>
     </div>
 
-    <div id="kasPage" class="page-content hidden p-4">
-        <h2 class="text-xl font-bold mb-4 text-slate-800">Laporan Saldo Kas</h2>
-        <div id="kasContent" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+   <div id="kasPage" class="page-content hidden p-2 md:p-4">
+    <h2 class="text-xl font-bold mb-4 text-slate-800 px-2">Analisis Kas & Penjualan</h2>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div id="kasContent" class="lg:col-span-2 space-y-4"></div>
+        
+        <div class="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden h-fit">
+            <div class="bg-slate-50 px-6 py-4 border-b border-slate-100">
+                <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest">Barang Terjual (Top 10)</h3>
             </div>
+            <div id="barangTerjualContent" class="p-2">
+                </div>
+        </div>
     </div>
+</div>
 
     <div id="labarugiPage" class="page-content hidden p-4">
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
@@ -948,6 +957,48 @@ function renderLabaRugi() {
                     </div>
                 </div>
             `;
+     // --- LOGIKA TAMBAHAN: HITUNG BARANG TERJUAL ---
+let pen jualanBarang = {};
+
+db.transaksi.forEach(row => {
+    const kategori = String(row["Kategori"] || "").toLowerCase().trim();
+    // Ambil hanya dari kategori penjualan dan yang memiliki detail barang
+    if (kategori === "penjualan" && row["Detail JSON"]) {
+        try {
+            const items = JSON.parse(row["Detail JSON"]);
+            if (Array.isArray(items)) {
+                items.forEach(item => {
+                    const nama = item.nama || "Tanpa Nama";
+                    const qty = parseFloat(item.qty) || 0;
+                    penjualanBarang[nama] = (penjualanBarang[nama] || 0) + qty;
+                });
+            }
+        } catch (e) { console.error("Error parse detail barang", e); }
+    }
+});
+
+// Urutkan dari yang terbanyak
+const sortedBarang = Object.entries(penjualanBarang)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10); // Ambil 10 teratas
+
+const barangContainer = document.getElementById('barangTerjualContent');
+if (sortedBarang.length > 0) {
+    barangContainer.innerHTML = `
+        <table class="w-full text-left">
+            <tbody class="divide-y divide-slate-50">
+                ${sortedBarang.map(([nama, qty]) => `
+                    <tr>
+                        <td class="px-4 py-3 text-[11px] font-medium text-slate-700 truncate max-w-[150px]">${nama}</td>
+                        <td class="px-4 py-3 text-right text-xs font-black text-blue-600">${qty} <span class="text-[9px] text-slate-400">pcs</span></td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+} else {
+    barangContainer.innerHTML = `<div class="p-6 text-center text-slate-400 text-xs italic">Belum ada data barang terjual</div>`;
+}
         }
 async function processPembelianExcel(file) {
     if (!file) return;
