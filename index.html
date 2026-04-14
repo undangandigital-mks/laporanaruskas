@@ -917,12 +917,19 @@ function renderLaporanKas() {
                             <td class="px-5 py-1.5 text-[11px] text-orange-600 font-bold italic">Tarik Dana Shopee</td>
                             <td class="px-4 py-1.5 text-right text-[11px] font-black text-orange-600">${formatIDR(data.totalShopee)}</td>
                         </tr>
-                        <tr class="bg-orange-50/10 text-[9px]">
-                            <td colspan="2" class="px-8 py-0.5 text-slate-400 italic">
-                                Shopee1: <span class="text-slate-500 font-bold">${formatIDR(data.shopeeSummary["tarik dana shopee1"])}</span> | 
-                                Shopee2: <span class="text-slate-500 font-bold">${formatIDR(data.shopeeSummary["tarik dana shopee2"])}</span>
-                            </td>
-                        </tr>
+                        <tr class="bg-orange-50/20">
+                                    <td colspan="2" class="pl-10 pr-4 py-1.5 text-[10px] border-l-2 border-orange-100 uppercase">
+                                        <span class="text-slate-400 font-medium italic">Tarik Dana Shopee1: </span>
+                                        <span class="text-slate-500 font-bold ml-1">${formatIDR(data.shopeeSummary["tarik dana shopee1"])}</span>
+                                    </td>
+                                </tr>
+                                
+                                <tr class="bg-orange-50/20">
+                                    <td colspan="2" class="pl-10 pr-4 py-1.5 text-[10px] border-l-2 border-orange-100 uppercase">
+                                        <span class="text-slate-400 font-medium italic">Tarik Dana Shopee2: </span>
+                                        <span class="text-slate-500 font-bold ml-1">${formatIDR(data.shopeeSummary["tarik dana shopee2"])}</span>
+                                    </td>
+                                </tr>
                         <tr>
                             <td class="px-5 py-1.5 text-[11px] text-slate-600">Cicilan Piutang</td>
                             <td class="px-4 py-1.5 text-right text-[11px] font-bold text-slate-800">${formatIDR(data.cicilanPiutang)}</td>
@@ -932,9 +939,13 @@ function renderLaporanKas() {
                             <td class="px-4 py-2 text-right text-xs font-black">${formatIDR(totalPendapatanB)}</td>
                         </tr>
                         <tr>
-                            <td class="px-5 py-1.5 text-[11px] text-red-600 italic">Operasional & Stok</td>
-                            <td class="px-4 py-1.5 text-right text-[11px] font-bold text-red-600">-${formatIDR(data.operasional + data.pembelian)}</td>
-                        </tr>
+                                    <td class="px-6 py-2 text-xs text-slate-600 font-medium italic text-red-600">Operasional</td>
+                                    <td class="px-4 py-2 text-right text-xs font-bold text-red-600">-${formatIDR(data.operasional)}</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-2 text-xs text-slate-600 font-medium italic text-red-600">Pembelian Stok</td>
+                                    <td class="px-4 py-2 text-right text-xs font-bold text-red-600">-${formatIDR(data.pembelian)}</td>
+                                </tr>
                         <tr>
                             <td class="px-5 py-1.5 text-[11px] text-red-600 font-bold">Bayar Utang</td>
                             <td class="px-4 py-1.5 text-right text-[11px] font-bold text-red-600">-${formatIDR(data.bayarUtang)}</td>
