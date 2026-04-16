@@ -827,71 +827,69 @@ function renderLaporanKas() {
     grandTotalOmset = 0;
 
     // 1. Process Transaksi
-    db.transaksi.forEach(row => {
-        const masuk = parseFloat(row["Masuk"]) || 0;
-        const keluar = parseFloat(row["Keluar"]) || 0;
-        const kategori = String(row["Kategori"] || "").toLowerCase().trim();
-        const keterangan = String(row["Keterangan"] || "").toLowerCase().trim();
-        const metode = String(row["Metode"] || "cash").toLowerCase();
+db.transaksi.forEach(row => {
+    const masuk = parseFloat(row["Masuk"]) || 0;
+    const keluar = parseFloat(row["Keluar"]) || 0;
+    const kategori = String(row["Kategori"] || "").toLowerCase().trim();
+    const keterangan = String(row["Keterangan"] || "").toLowerCase().trim();
+    const metode = String(row["Metode"] || "cash").toLowerCase();
 
-        if (masuk > 0) {
-            if (kategori === "saldo awal") {
-                data.saldoAwal += masuk;
-            } else if (kategori === "penjualan") {
-                data.penjualanLangsung += masuk;
+    // --- LOGIKA BARANG (Tetap hitung walau masuk = 0) ---
+    if (kategori === "penjualan" && row["Detail JSON"]) {
+        try {
+            const items = JSON.parse(row["Detail JSON"]);
+            if (Array.isArray(items)) {
+                items.forEach(item => {
+                    const namaAsli = item.nama || "Tanpa Nama";
+                    const namaKey = namaAsli.toLowerCase(); 
+                    const qty = parseFloat(item.qty) || 0;
+                    const harga = parseFloat(item.harga) || 0;
+                    const subtotal = qty * harga;
 
-                if (keterangan === "tarik dana shopee1" || keterangan === "tarik dana shopee2") {
-                    data.totalShopee += masuk;
-                    data.shopeeSummary[keterangan] += masuk;
-                    data.penjualanLangsung -= masuk;
-                }
-
-                if (row["Detail JSON"]) {
-                    try {
-                        const items = JSON.parse(row["Detail JSON"]);
-                        if (Array.isArray(items)) {
-                            items.forEach(item => {
-                                const namaAsli = item.nama || "Tanpa Nama";
-                                const namaKey = namaAsli.toLowerCase(); 
-
-                                const qty = parseFloat(item.qty) || 0;
-                                const harga = parseFloat(item.harga) || 0;
-                                const subtotal = qty * harga;
-
-                                if (!barangTerjualMap[namaKey]) {
-                                    barangTerjualMap[namaKey] = { 
-                                        tampilan: namaAsli, 
-                                        qty: 0, 
-                                        omset: 0 
-                                    };
-                                }
-                                
-                                barangTerjualMap[namaKey].qty += qty;
-                                barangTerjualMap[namaKey].omset += subtotal;
-                                
-                                grandTotalQty += qty;
-                                grandTotalOmset += subtotal;
-                            });
-                        }
-                    } catch (e) { /* silent */ }
-                }
-            } else if (kategori === "cicilan piutang") {
-                data.cicilanPiutang += masuk;
+                    if (!barangTerjualMap[namaKey]) {
+                        barangTerjualMap[namaKey] = { tampilan: namaAsli, qty: 0, omset: 0 };
+                    }
+                    
+                    barangTerjualMap[namaKey].qty += qty;
+                    barangTerjualMap[namaKey].omset += subtotal;
+                    grandTotalQty += qty;
+                    grandTotalOmset += subtotal;
+                });
             }
-        }
-        
-        if (keluar > 0) {
-            if (kategori === "operasional") data.operasional += keluar;
-            else if (kategori === "pembelian") data.pembelian += keluar;
-            else if (kategori === "bayar utang") data.bayarUtang += keluar;
-        }
+        } catch (e) { /* silent */ }
+    }
 
-        const netto = masuk - keluar;
-        if (metode.includes("rek") || metode.includes("bank") || metode.includes("tf")) data.rekening += netto;
-        else data.cash += netto;
-        data.saldo += netto;
-    });
+    // --- LOGIKA KAS (Uang Masuk) ---
+    if (masuk > 0) {
+        if (kategori === "saldo awal") {
+            data.saldoAwal += masuk;
+        } else if (kategori === "penjualan") {
+            data.penjualanLangsung += masuk;
 
+            if (keterangan === "tarik dana shopee1" || keterangan === "tarik dana shopee2") {
+                data.totalShopee += masuk;
+                data.shopeeSummary[keterangan] += masuk;
+                data.penjualanLangsung -= masuk;
+            }
+        } else if (kategori === "cicilan piutang") {
+            data.cicilanPiutang += masuk;
+        }
+    }
+    
+    // --- LOGIKA KAS (Uang Keluar) ---
+    if (keluar > 0) {
+        if (kategori === "operasional") data.operasional += keluar;
+        else if (kategori === "pembelian") data.pembelian += keluar;
+        else if (kategori === "bayar utang") data.bayarUtang += keluar;
+    }
+
+    // Update Saldo Kas/Bank
+    const netto = masuk - keluar;
+    if (metode.includes("rek") || metode.includes("bank") || metode.includes("tf")) data.rekening += netto;
+    else data.cash += netto;
+    data.saldo += netto;
+});
+    
     db.piutang.forEach(row => { data.sisaPiutang += parseFloat(row["Sisa Piutang"] || row["Sisa"] || 0); });
     db.utang.forEach(row => { data.sisaUtang += parseFloat(row["Sisa Utang"] || row["Total Utang"] || row["Sisa"] || 0); });
 
