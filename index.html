@@ -835,63 +835,51 @@ function renderLaporanKas() {
         const metode = String(row["Metode"] || "cash").toLowerCase();
 
         if (masuk > 0) {
-    if (kategori === "saldo awal") {
-        data.saldoAwal += masuk;
-    } else if (kategori === "penjualan") {
-        // 1. Masukkan semua uang masuk kategori penjualan ke Penjualan Langsung
-        data.penjualanLangsung += masuk;
+            if (kategori === "saldo awal") {
+                data.saldoAwal += masuk;
+            } else if (kategori === "penjualan") {
+                data.penjualanLangsung += masuk;
 
-        // 2. Cek apakah ini transaksi Shopee spesifik
-        if (keterangan === "tarik dana shopee1" || keterangan === "tarik dana shopee2") {
-            data.totalShopee += masuk;
-            data.shopeeSummary[keterangan] += masuk;
-            
-            // 3. Kurangi Penjualan Langsung dengan nilai tarik dana shopee tersebut
-            // Sehingga: Penjualan Langsung = (Total Masuk Penjualan) - (Total Shopee)
-            data.penjualanLangsung -= masuk;
-        }
+                if (keterangan === "tarik dana shopee1" || keterangan === "tarik dana shopee2") {
+                    data.totalShopee += masuk;
+                    data.shopeeSummary[keterangan] += masuk;
+                    data.penjualanLangsung -= masuk;
+                }
 
-        // --- Bagian Detail JSON tetap sama ---
-        if (row["Detail JSON"]) {
-            try {
-                const items = JSON.parse(row["Detail JSON"]);
-                if (Array.isArray(items)) {
-    items.forEach(item => {
-        // 1. Ambil nama asli (spasi tetap dipertahankan sesuai permintaan Anda)
-        const namaAsli = item.nama || "Tanpa Nama";
-        
-        // 2. Gunakan versi huruf kecil (lowercase) sebagai Key agar tidak case-sensitive
-        // Tanpa .trim() agar spasi yang "tidak seharusnya" tetap dianggap bagian dari identitas barang
-        const namaKey = namaAsli.toLowerCase(); 
+                if (row["Detail JSON"]) {
+                    try {
+                        const items = JSON.parse(row["Detail JSON"]);
+                        if (Array.isArray(items)) {
+                            items.forEach(item => {
+                                const namaAsli = item.nama || "Tanpa Nama";
+                                const namaKey = namaAsli.toLowerCase(); 
 
-        const qty = parseFloat(item.qty) || 0;
-        const harga = parseFloat(item.harga) || 0;
-        const subtotal = qty * harga;
+                                const qty = parseFloat(item.qty) || 0;
+                                const harga = parseFloat(item.harga) || 0;
+                                const subtotal = qty * harga;
 
-        // 3. Periksa menggunakan namaKey
-        if (!barangTerjualMap[namaKey]) {
-            barangTerjualMap[namaKey] = { 
-                tampilan: namaAsli, // Menyimpan format tulisan (termasuk spasi asli)
-                qty: 0, 
-                omset: 0 
-            };
-        }
-        
-        barangTerjualMap[namaKey].qty += qty;
-        barangTerjualMap[namaKey].omset += subtotal;
-        
-        grandTotalQty += qty;
-        grandTotalOmset += subtotal;
-    });
-}
-            } catch (e) {
-                // Error handling silent
+                                if (!barangTerjualMap[namaKey]) {
+                                    barangTerjualMap[namaKey] = { 
+                                        tampilan: namaAsli, 
+                                        qty: 0, 
+                                        omset: 0 
+                                    };
+                                }
+                                
+                                barangTerjualMap[namaKey].qty += qty;
+                                barangTerjualMap[namaKey].omset += subtotal;
+                                
+                                grandTotalQty += qty;
+                                grandTotalOmset += subtotal;
+                            });
+                        }
+                    } catch (e) { /* silent */ }
+                }
+            } else if (kategori === "cicilan piutang") {
+                data.cicilanPiutang += masuk;
             }
         }
-    } else if (kategori === "cicilan piutang") {
-        data.cicilanPiutang += masuk;
-    }
-}
+        
         if (keluar > 0) {
             if (kategori === "operasional") data.operasional += keluar;
             else if (kategori === "pembelian") data.pembelian += keluar;
@@ -910,21 +898,22 @@ function renderLaporanKas() {
     const totalPendapatanB = data.penjualanLangsung + data.cicilanPiutang + data.totalShopee;
     const totalPengeluaranC = data.operasional + data.pembelian + data.bayarUtang;
 
+    // 2. Render Summary & Tombol Export
     if (summaryContainer) {
         summaryContainer.innerHTML = `
-            <div class="flex items-center justify-between w-full">
-            <div class="flex gap-2">
-                <div class="px-2 py-1 bg-blue-50 border border-blue-100 rounded text-[9px] font-bold text-blue-600">${grandTotalQty} Pcs</div>
-                <div class="px-2 py-1 bg-emerald-50 border border-emerald-100 rounded text-[9px] font-bold text-emerald-600">${formatIDR(grandTotalOmset)}</div>
+            <div class="flex items-center justify-between w-full mb-2">
+                <div class="flex gap-2">
+                    <div class="px-2 py-1 bg-blue-50 border border-blue-100 rounded text-[9px] font-bold text-blue-600">${grandTotalQty} Pcs</div>
+                    <div class="px-2 py-1 bg-emerald-50 border border-emerald-100 rounded text-[9px] font-bold text-emerald-600">${formatIDR(grandTotalOmset)}</div>
+                </div>
+                <button onclick="exportBarangToExcel()" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-bold rounded-lg transition-colors flex items-center gap-1 shadow-sm">
+                    <i class="fas fa-file-excel"></i> EXPORT
+                </button>
             </div>
-            <button onclick="exportBarangToExcel()" class="ml-2 px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-[9px] font-bold rounded-lg transition-colors flex items-center gap-1">
-                <i class="fas fa-file-excel"></i> Export
-            </button>
-        </div>
         `;
     }
 
-    // 4. Render Kolom Kiri: Laporan Kas (DIKOMPRES AGAR PENDEK)
+    // 3. Render Kolom Kiri: Laporan Kas
     container.innerHTML = `
         <div class="space-y-3 animate-fade">
             <div class="bg-gradient-to-br from-slate-800 to-slate-950 p-5 rounded-[2rem] text-white shadow-xl text-center">
@@ -958,18 +947,17 @@ function renderLaporanKas() {
                             <td class="px-4 py-1.5 text-right text-[11px] font-black text-orange-600">${formatIDR(data.totalShopee)}</td>
                         </tr>
                         <tr class="bg-orange-50/20">
-                                    <td colspan="2" class="pl-10 pr-4 py-1.5 text-[10px] border-l-2 border-orange-100 uppercase">
-                                        <span class="text-slate-400 font-medium italic">Tarik Dana Shopee1: </span>
-                                        <span class="text-slate-500 font-bold ml-1">${formatIDR(data.shopeeSummary["tarik dana shopee1"])}</span>
-                                    </td>
-                                </tr>
-                                
-                                <tr class="bg-orange-50/20">
-                                    <td colspan="2" class="pl-10 pr-4 py-1.5 text-[10px] border-l-2 border-orange-100 uppercase">
-                                        <span class="text-slate-400 font-medium italic">Tarik Dana Shopee2: </span>
-                                        <span class="text-slate-500 font-bold ml-1">${formatIDR(data.shopeeSummary["tarik dana shopee2"])}</span>
-                                    </td>
-                                </tr>
+                            <td colspan="2" class="pl-10 pr-4 py-1 text-[10px] border-l-2 border-orange-100 uppercase">
+                                <span class="text-slate-400 font-medium italic">Shopee1: </span>
+                                <span class="text-slate-500 font-bold ml-1">${formatIDR(data.shopeeSummary["tarik dana shopee1"])}</span>
+                            </td>
+                        </tr>
+                        <tr class="bg-orange-50/20">
+                            <td colspan="2" class="pl-10 pr-4 py-1 text-[10px] border-l-2 border-orange-100 uppercase">
+                                <span class="text-slate-400 font-medium italic">Shopee2: </span>
+                                <span class="text-slate-500 font-bold ml-1">${formatIDR(data.shopeeSummary["tarik dana shopee2"])}</span>
+                            </td>
+                        </tr>
                         <tr>
                             <td class="px-5 py-1.5 text-[11px] text-slate-600">Cicilan Piutang</td>
                             <td class="px-4 py-1.5 text-right text-[11px] font-bold text-slate-800">${formatIDR(data.cicilanPiutang)}</td>
@@ -979,16 +967,16 @@ function renderLaporanKas() {
                             <td class="px-4 py-2 text-right text-xs font-black">${formatIDR(totalPendapatanB)}</td>
                         </tr>
                         <tr>
-                                    <td class="px-6 py-2 text-xs text-slate-600 font-medium italic text-red-600">Operasional</td>
-                                    <td class="px-4 py-2 text-right text-xs font-bold text-red-600">-${formatIDR(data.operasional)}</td>
-                                </tr>
-                                <tr>
-                                    <td class="px-6 py-2 text-xs text-slate-600 font-medium italic text-red-600">Pembelian Stok</td>
-                                    <td class="px-4 py-2 text-right text-xs font-bold text-red-600">-${formatIDR(data.pembelian)}</td>
-                                </tr>
+                            <td class="px-6 py-2 text-xs text-red-600 font-medium italic">Operasional</td>
+                            <td class="px-4 py-2 text-right text-xs font-bold text-red-600">-${formatIDR(data.operasional)}</td>
+                        </tr>
                         <tr>
-                            <td class="px-5 py-1.5 text-[11px] text-red-600 font-bold">Bayar Utang</td>
-                            <td class="px-4 py-1.5 text-right text-[11px] font-bold text-red-600">-${formatIDR(data.bayarUtang)}</td>
+                            <td class="px-6 py-2 text-xs text-red-600 font-medium italic">Pembelian Stok</td>
+                            <td class="px-4 py-2 text-right text-xs font-bold text-red-600">-${formatIDR(data.pembelian)}</td>
+                        </tr>
+                        <tr>
+                            <td class="px-6 py-2 text-xs text-red-600 font-medium italic">Bayar Utang</td>
+                            <td class="px-4 py-2 text-right text-xs font-bold text-red-600">-${formatIDR(data.bayarUtang)}</td>
                         </tr>
                         <tr class="bg-red-600 text-white font-bold">
                             <td class="px-5 py-2 text-[9px] uppercase text-right tracking-widest">Total Pengeluaran (C)</td>
@@ -1010,7 +998,8 @@ function renderLaporanKas() {
             </div>
         </div>
     `;
-    // 5. Render Kolom Kanan: Daftar Barang Terjual (Dengan Scroll & Omset)
+
+    // 4. Render Kolom Kanan: Daftar Barang Terjual
     const sortedBarang = Object.entries(barangTerjualMap).sort((a, b) => b[1].qty - a[1].qty);
 
     if (barangContainer) {
@@ -1025,9 +1014,9 @@ function renderLaporanKas() {
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-50">
-                        ${sortedBarang.map(([nama, val]) => `
+                        ${sortedBarang.map(([key, val]) => `
                             <tr class="hover:bg-slate-50 transition-colors">
-                                <td class="px-4 py-3 text-[10px] font-medium text-slate-700 truncate max-w-[110px]">${nama}</td>
+                                <td class="px-4 py-3 text-[10px] font-medium text-slate-700 truncate max-w-[110px]">${val.tampilan}</td>
                                 <td class="px-4 py-3 text-right text-xs font-black text-slate-900">${val.qty}</td>
                                 <td class="px-4 py-3 text-right text-[10px] font-bold text-emerald-600">${formatIDR(val.omset)}</td>
                             </tr>
