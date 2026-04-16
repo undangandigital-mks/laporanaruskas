@@ -826,37 +826,47 @@ function renderLaporanKas() {
         const metode = String(row["Metode"] || "cash").toLowerCase();
 
         if (masuk > 0) {
-            if (kategori === "saldo awal") data.saldoAwal += masuk;
-            else if (kategori === "penjualan") {
-                if (keterangan === "tarik dana shopee1" || keterangan === "tarik dana shopee2") {
-                    data.totalShopee += masuk;
-                    data.shopeeSummary[keterangan] += masuk;
-                } else if (!keterangan.includes("shopee")) {
-                    data.penjualanLangsung += masuk;
-                }
+    if (kategori === "saldo awal") {
+        data.saldoAwal += masuk;
+    } else if (kategori === "penjualan") {
+        // 1. Masukkan semua uang masuk kategori penjualan ke Penjualan Langsung
+        data.penjualanLangsung += masuk;
 
-                if (row["Detail JSON"]) {
-                    try {
-                        const items = JSON.parse(row["Detail JSON"]);
-                        if (Array.isArray(items)) {
-                            items.forEach(item => {
-                                const nama = item.nama || "Tanpa Nama";
-                                const qty = parseFloat(item.qty) || 0;
-                                const harga = parseFloat(item.harga) || 0;
-                                const subtotal = qty * harga;
-                                if (!barangTerjualMap[nama]) barangTerjualMap[nama] = { qty: 0, omset: 0 };
-                                barangTerjualMap[nama].qty += qty;
-                                barangTerjualMap[nama].omset += subtotal;
-                                grandTotalQty += qty;
-                                grandTotalOmset += subtotal;
-                            });
-                        }
-                    } catch (e) {}
-                }
-            } 
-            else if (kategori === "cicilan piutang") data.cicilanPiutang += masuk;
+        // 2. Cek apakah ini transaksi Shopee spesifik
+        if (keterangan === "tarik dana shopee1" || keterangan === "tarik dana shopee2") {
+            data.totalShopee += masuk;
+            data.shopeeSummary[keterangan] += masuk;
+            
+            // 3. Kurangi Penjualan Langsung dengan nilai tarik dana shopee tersebut
+            // Sehingga: Penjualan Langsung = (Total Masuk Penjualan) - (Total Shopee)
+            data.penjualanLangsung -= masuk;
         }
 
+        // --- Bagian Detail JSON tetap sama ---
+        if (row["Detail JSON"]) {
+            try {
+                const items = JSON.parse(row["Detail JSON"]);
+                if (Array.isArray(items)) {
+                    items.forEach(item => {
+                        const nama = item.nama || "Tanpa Nama";
+                        const qty = parseFloat(item.qty) || 0;
+                        const harga = parseFloat(item.harga) || 0;
+                        const subtotal = qty * harga;
+                        if (!barangTerjualMap[nama]) barangTerjualMap[nama] = { qty: 0, omset: 0 };
+                        barangTerjualMap[nama].qty += qty;
+                        barangTerjualMap[nama].omset += subtotal;
+                        grandTotalQty += qty;
+                        grandTotalOmset += subtotal;
+                    });
+                }
+            } catch (e) {
+                // Error handling silent
+            }
+        }
+    } else if (kategori === "cicilan piutang") {
+        data.cicilanPiutang += masuk;
+    }
+}
         if (keluar > 0) {
             if (kategori === "operasional") data.operasional += keluar;
             else if (kategori === "pembelian") data.pembelian += keluar;
