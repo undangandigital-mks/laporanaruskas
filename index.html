@@ -856,18 +856,34 @@ function renderLaporanKas() {
             try {
                 const items = JSON.parse(row["Detail JSON"]);
                 if (Array.isArray(items)) {
-                    items.forEach(item => {
-                        const nama = item.nama || "Tanpa Nama";
-                        const qty = parseFloat(item.qty) || 0;
-                        const harga = parseFloat(item.harga) || 0;
-                        const subtotal = qty * harga;
-                        if (!barangTerjualMap[nama]) barangTerjualMap[nama] = { qty: 0, omset: 0 };
-                        barangTerjualMap[nama].qty += qty;
-                        barangTerjualMap[nama].omset += subtotal;
-                        grandTotalQty += qty;
-                        grandTotalOmset += subtotal;
-                    });
-                }
+    items.forEach(item => {
+        // 1. Ambil nama asli (spasi tetap dipertahankan sesuai permintaan Anda)
+        const namaAsli = item.nama || "Tanpa Nama";
+        
+        // 2. Gunakan versi huruf kecil (lowercase) sebagai Key agar tidak case-sensitive
+        // Tanpa .trim() agar spasi yang "tidak seharusnya" tetap dianggap bagian dari identitas barang
+        const namaKey = namaAsli.toLowerCase(); 
+
+        const qty = parseFloat(item.qty) || 0;
+        const harga = parseFloat(item.harga) || 0;
+        const subtotal = qty * harga;
+
+        // 3. Periksa menggunakan namaKey
+        if (!barangTerjualMap[namaKey]) {
+            barangTerjualMap[namaKey] = { 
+                tampilan: namaAsli, // Menyimpan format tulisan (termasuk spasi asli)
+                qty: 0, 
+                omset: 0 
+            };
+        }
+        
+        barangTerjualMap[namaKey].qty += qty;
+        barangTerjualMap[namaKey].omset += subtotal;
+        
+        grandTotalQty += qty;
+        grandTotalOmset += subtotal;
+    });
+}
             } catch (e) {
                 // Error handling silent
             }
