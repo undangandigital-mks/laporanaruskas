@@ -403,61 +403,65 @@ async function processShopeeExcel(file, actionTarget) {
             renderLabaRugi();
         }
     } else {
-        // --- MODE DATA (Transaksi, Piutang, Stok) ---
-        mainDashboardElements.forEach(el => el?.classList.remove('hidden'));
+// --- MODE DATA (Transaksi, Piutang, Stok) ---
+mainDashboardElements.forEach(el => el?.classList.remove('hidden'));
 
-        // LOGIKA PEMBERSIHAN FILTER TANGGAL (AGRESIF UNTUK STOK & PIUTANG)
-        if (tab === 'stok' || tab === 'piutang') {
-            if (dateQuickFilters) dateQuickFilters.classList.add('hidden');
-            if (dateInputSection) dateInputSection.classList.add('hidden');
-            if (btnResetRange) btnResetRange.classList.add('hidden');
-            
-            // Netralkan nilai filter agar data tidak terpotong oleh filter tanggal sebelumnya
-            document.getElementById('dateStart').value = "";
-            document.getElementById('dateEnd').value = "";
-        } else {
-            // Tampilkan kembali elemen filter jika kembali ke tab Transaksi/Semua
-            if (dateQuickFilters) dateQuickFilters.classList.remove('hidden');
-            if (dateInputSection) dateInputSection.classList.remove('hidden');
-            if (btnResetRange) btnResetRange.classList.remove('hidden');
-        }
+// LOGIKA PEMBERSIHAN FILTER TANGGAL
+if (tab === 'stok' || tab === 'piutang') {
+    if (dateQuickFilters) dateQuickFilters.classList.add('hidden');
+    if (dateInputSection) dateInputSection.classList.add('hidden');
+    if (btnResetRange) btnResetRange.classList.add('hidden');
+    
+    document.getElementById('dateStart').value = "";
+    document.getElementById('dateEnd').value = "";
+} else {
+    if (dateQuickFilters) dateQuickFilters.classList.remove('hidden');
+    if (dateInputSection) dateInputSection.classList.remove('hidden');
+    if (btnResetRange) btnResetRange.classList.remove('hidden');
+}
 
-        // KHUSUS TAB STOK: Tampilkan Kartu Total Nilai Aset
-        if (tab === 'stok') {
-            statsGrid.innerHTML = `
-                <div class="col-span-full bg-white p-6 rounded-2xl shadow-sm border border-blue-100 flex items-center justify-between">
-                    <div>
-                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Nilai Aset Stok</p>
-                        <h3 id="totalAsetStok" class="text-2xl font-black text-blue-600">Rp 0</h3>
-                    </div>
-                    <div class="w-12 h-12 bg-blue-50 text-blue-500 rounded-2xl flex items-center justify-center text-xl">
-                        <i class="fas fa-boxes-stacked"></i>
-                    </div>
-                </div>
-            `;
-        } else {
-            // STRUKTUR 4 KARTU UNTUK TRANSAKSI/PIUTANG
-            statsGrid.innerHTML = `
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase">Pendapatan</p>
-                    <h3 id="totalMasuk" class="text-sm font-bold text-slate-800">Rp 0</h3>
-                </div>
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase">Pengeluaran</p>
-                    <h3 id="totalKeluar" class="text-sm font-bold text-slate-800">Rp 0</h3>
-                </div>
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase">Laba Kotor</p>
-                    <h3 id="totalSaldo" class="text-sm font-bold text-slate-800">Rp 0</h3>
-                </div>
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase">Sisa Piutang</p>
-                    <h3 id="totalPiutang" class="text-sm font-bold text-slate-800">Rp 0</h3>
-                </div>
-            `;
-        }
-        
-        renderContent(); 
+// MANIPULASI TAMPILAN KARTU STATISTIK (statsGrid)
+if (tab === 'stok') {
+    // Tampilan khusus Stok
+    statsGrid.innerHTML = `
+        <div class="col-span-full bg-white p-6 rounded-2xl shadow-sm border border-blue-100 flex items-center justify-between">
+            <div>
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Nilai Aset Stok</p>
+                <h3 id="totalAsetStok" class="text-2xl font-black text-blue-600">Rp 0</h3>
+            </div>
+            <div class="w-12 h-12 bg-blue-50 text-blue-500 rounded-2xl flex items-center justify-center text-xl">
+                <i class="fas fa-boxes-stacked"></i>
+            </div>
+        </div>
+    `;
+} else if (tab === 'piutang') {
+    // Kosongkan statsGrid atau sembunyikan jika di tab Piutang
+    statsGrid.innerHTML = ''; 
+    // Atau jika ingin memberikan jarak saja, biarkan string kosong
+} else {
+    // Tampilan Default untuk Transaksi/Semua (4 Kartu)
+    statsGrid.innerHTML = `
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 border-l-4 border-green-500">
+            <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Pendapatan</p>
+            <h3 id="totalMasuk" class="text-sm font-bold text-slate-800">Rp 0</h3>
+            <div class="text-[8px] text-slate-500 mt-1 italic">(Uang Masuk + Sisa Piutang)</div>
+        </div>
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 border-l-4 border-red-500">
+            <p class="text-[10px] font-bold text-slate-400 uppercase">Pengeluaran</p>
+            <h3 id="totalKeluar" class="text-sm font-bold text-slate-800">Rp 0</h3>
+        </div>
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 border-l-4 border-blue-600">
+            <p class="text-[10px] font-bold text-slate-400 uppercase">Laba Kotor</p>
+            <h3 id="totalSaldo" class="text-sm font-bold text-slate-800">Rp 0</h3>
+        </div>
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 border-l-4 border-orange-500">
+            <p class="text-[10px] font-bold text-slate-400 uppercase">Sisa Piutang</p>
+            <h3 id="totalPiutang" class="text-sm font-bold text-slate-800">Rp 0</h3>
+        </div>
+    `;
+}
+
+renderContent();
     }
 
     // 6. Tandai Tombol yang Aktif
