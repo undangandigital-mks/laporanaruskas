@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -293,7 +294,9 @@ window.SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzuQ6eLJUKjAVyfXctm
         const rowsPerPage = 50;
         let filteredData = [];
         let dateFilterMode = 'all';
-
+         let barangTerjualMap = {};
+    let grandTotalOmset = 0;
+    let grandTotalQty = 0;
  let currentShopeeAction = 'insertShopeeData';
 
 function triggerShopeeImport(action) {
@@ -820,9 +823,9 @@ function renderLaporanKas() {
         cash: 0, rekening: 0, saldo: 0, sisaPiutang: 0, sisaUtang: 0
     };
 
-    let barangTerjualMap = {};
-    let grandTotalOmset = 0;
-    let grandTotalQty = 0;
+    barangTerjualMap = {};
+    grandTotalQty = 0;
+    grandTotalOmset = 0;
 
     // 1. Process Transaksi
     db.transaksi.forEach(row => {
@@ -894,10 +897,15 @@ function renderLaporanKas() {
 
     if (summaryContainer) {
         summaryContainer.innerHTML = `
+            <div class="flex items-center justify-between w-full">
             <div class="flex gap-2">
                 <div class="px-2 py-1 bg-blue-50 border border-blue-100 rounded text-[9px] font-bold text-blue-600">${grandTotalQty} Pcs</div>
                 <div class="px-2 py-1 bg-emerald-50 border border-emerald-100 rounded text-[9px] font-bold text-emerald-600">${formatIDR(grandTotalOmset)}</div>
             </div>
+            <button onclick="exportBarangToExcel()" class="ml-2 px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-[9px] font-bold rounded-lg transition-colors flex items-center gap-1">
+                <i class="fas fa-file-excel"></i> Export
+            </button>
+        </div>
         `;
     }
 
@@ -1016,6 +1024,42 @@ function renderLaporanKas() {
             barangContainer.innerHTML = `<div class="p-8 text-center text-slate-400 text-[10px] italic">Tidak ada data terjual</div>`;
         }
     }
+}
+
+        function exportBarangToExcel() {
+    // 1. Ambil data barangTerjualMap yang sudah diolah
+    // Kita perlu menjalankan ulang logika pengambilan data atau 
+    // pastikan barangTerjualMap bersifat global.
+    
+    // Namun cara termudah adalah mengambil data dari variabel yang sudah di-sort
+    // di dalam renderLaporanKas jika ingin export apa yang tampil di layar.
+    
+    // Membuat baris untuk Excel
+    const rows = [];
+    
+    // Header Kolom
+    rows.push(["Nama Produk", "Qty Terjual", "Total Omset"]);
+
+    // Mengambil data dari tabel yang tampil (menggunakan data dari db yang sudah difilter)
+    // Asumsi: barangTerjualMap tersedia saat fungsi ini dipanggil
+    const sortedBarang = Object.entries(barangTerjualMap).sort((a, b) => b[1].qty - a[1].qty);
+
+    sortedBarang.forEach(([nama, val]) => {
+        rows.push([nama, val.qty, val.omset]);
+    });
+
+    // Tambahkan Total di bawah
+    rows.push([]);
+    rows.push(["GRAND TOTAL", grandTotalQty, grandTotalOmset]);
+
+    // 2. Proses pembuatan Excel
+    const worksheet = XLSX.utils.aoa_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Barang Terjual");
+
+    // 3. Download File
+    const tanggal = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(workbook, `Laporan_Barang_Terjual_${tanggal}.xlsx`);
 }
         
 async function processPembelianExcel(file) {
