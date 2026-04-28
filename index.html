@@ -530,7 +530,7 @@ renderContent();
             });
         }
 
-      function calculateStats() {
+    function calculateStats() {
     const statsGrid = document.getElementById('statsGrid');
 
     // --- LOGIKA KHUSUS TAB STOK ---
@@ -540,7 +540,6 @@ renderContent();
         let totalAsetStok = 0;
         const query = document.getElementById('searchInput').value.toLowerCase();
 
-        // Hitung total aset berdasarkan data yang terlihat (terfilter)
         db.stok.forEach(item => {
             const nama = (item["Nama Barang"] || "").toLowerCase();
             const pass = nama.includes(query);
@@ -548,25 +547,28 @@ renderContent();
             if (pass) {
                 const sisa = parseFloat(item["Sisa Stok"]) || 0;
                 const harga = parseFloat(item["Harga Beli Terbaru"]) || 0;
-                // Jika stok minus, nilai aset dianggap 0 (sesuai instruksi sebelumnya)
                 totalAsetStok += (Math.max(0, sisa) * harga);
             }
         });
 
-        // Update UI khusus kartu Total Aset
         const elAset = document.getElementById('totalAsetStok');
         if (elAset) {
             elAset.innerText = formatIDR(totalAsetStok);
         }
-        return; // Berhenti di sini jika di tab stok
+        return;
     } 
 
     // --- LOGIKA TAB TRANSAKSI / PIUTANG ---
     statsGrid.classList.remove('hidden');
             
-    let masuk = 0, keluar = 0, piutangTerfilter = 0, piutangTotalSemua = 0, totalRefund = 0;
+    let masuk = 0, keluar = 0, totalRefund = 0;
+    let piutangTotalSemua = 0;
     
-    const excludedCategories = ["transfer saldo", "saldo awal"];
+    // Variabel baru untuk rumus pendapatan
+    let totalTagihanTerfilter = 0;
+    let totalDPTerfilter = 0;
+    
+    const excludedCategories = ["transfer saldo", "saldo awal", "cicilan piutang"];
     const refundCategory = "pengembalian dana"; 
 
     const query = document.getElementById('searchInput').value.toLowerCase();
@@ -608,33 +610,40 @@ renderContent();
     // 2. HITUNG PIUTANG (DENGAN FILTER)
     db.piutang.forEach(r => {
         const sisa = parseFloat(r["Sisa Piutang"]) || 0;
+        const totalTagihan = parseFloat(r["Total Tagihan"]) || 0;
+        const dp = parseFloat(r["DP"]) || 0;
         const status = (r["Status"] || "").toLowerCase();
         
+        // Sisa Piutang Total (Global)
         if (sisa > 0 && status !== 'lunas') {
             piutangTotalSemua += sisa;
+        }
 
-            let passPiutang = Object.values(r).some(v => String(v).toLowerCase().includes(query));
-            if (passPiutang && (start || end)) {
-                const dateStr = r["Waktu"];
-                if(dateStr) {
-                    const itemTime = new Date(dateStr).getTime();
-                    if(!isNaN(itemTime)) {
-                        if(start) passPiutang = passPiutang && itemTime >= new Date(start).getTime();
-                        if(end) passPiutang = passPiutang && itemTime <= new Date(end).setHours(23, 59, 59, 999);
-                    }
+        // Hitung Tagihan & DP untuk Pendapatan Terfilter
+        let passPiutang = Object.values(r).some(v => String(v).toLowerCase().includes(query));
+        if (passPiutang && (start || end)) {
+            const dateStr = r["Waktu"];
+            if(dateStr) {
+                const itemTime = new Date(dateStr).getTime();
+                if(!isNaN(itemTime)) {
+                    if(start) passPiutang = passPiutang && itemTime >= new Date(start).getTime();
+                    if(end) passPiutang = passPiutang && itemTime <= new Date(end).setHours(23, 59, 59, 999);
                 }
             }
-            if (passPiutang) {
-                piutangTerfilter += sisa;
-            }
+        }
+
+        if (passPiutang) {
+            totalTagihanTerfilter += totalTagihan;
+            totalDPTerfilter += dp;
         }
     });
 
-    // --- KALKULASI AKHIR ---
-    const pendapatanFinal = (masuk - totalRefund) + piutangTerfilter;
+    // --- KALKULASI AKHIR SESUAI INSTRUKSI ---
+    // Rumus: (Masuk - Refund) + (Total Tagihan - DP)
+    const pendapatanFinal = (masuk - totalRefund) + (totalTagihanTerfilter - totalDPTerfilter);
     const labaKotor = masuk - (keluar + totalRefund);
 
-    // Update UI Dashboard (Pastikan ID elemen sesuai dengan HTML statsGrid baru)
+    // Update UI Dashboard
     if (document.getElementById('totalMasuk')) document.getElementById('totalMasuk').innerText = formatIDR(pendapatanFinal);
     if (document.getElementById('totalKeluar')) document.getElementById('totalKeluar').innerText = formatIDR(keluar); 
     
