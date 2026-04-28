@@ -564,7 +564,6 @@ renderContent();
     let masuk = 0, keluar = 0, totalRefund = 0;
     let piutangTotalSemua = 0;
     
-    // Variabel baru untuk rumus pendapatan
     let totalTagihanTerfilter = 0;
     let totalDPTerfilter = 0;
     
@@ -591,8 +590,12 @@ renderContent();
         
         if (pass) {
             const category = (r["Kategori"] || "").toLowerCase().trim();
+            const keterangan = (r["Keterangan"] || "").toLowerCase().trim(); // Ambil data keterangan
             const isExcluded = excludedCategories.some(excluded => category.includes(excluded));
             
+            // Tambahan Logika: Cek apakah keterangan mengandung "tarik dana shopee"
+            const isShopeeWithdrawal = keterangan.includes("tarik dana shopee1") || keterangan.includes("tarik dana shopee2");
+
             if (!isExcluded) {
                 const rMasuk = parseFloat(r["Masuk"]) || 0;
                 const rKeluar = parseFloat(r["Keluar"]) || 0;
@@ -600,7 +603,10 @@ renderContent();
                 if (category.includes(refundCategory)) {
                     totalRefund += rKeluar;
                 } else {
-                    masuk += rMasuk;
+                    // Hanya tambahkan ke 'masuk' jika BUKAN penarikan dana shopee
+                    if (!isShopeeWithdrawal) {
+                        masuk += rMasuk;
+                    }
                     keluar += rKeluar;
                 }
             }
@@ -614,12 +620,10 @@ renderContent();
         const dp = parseFloat(r["DP"]) || 0;
         const status = (r["Status"] || "").toLowerCase();
         
-        // Sisa Piutang Total (Global)
         if (sisa > 0 && status !== 'lunas') {
             piutangTotalSemua += sisa;
         }
 
-        // Hitung Tagihan & DP untuk Pendapatan Terfilter
         let passPiutang = Object.values(r).some(v => String(v).toLowerCase().includes(query));
         if (passPiutang && (start || end)) {
             const dateStr = r["Waktu"];
@@ -638,12 +642,11 @@ renderContent();
         }
     });
 
-    // --- KALKULASI AKHIR SESUAI INSTRUKSI ---
-    // Rumus: (Masuk - Refund) + (Total Tagihan - DP)
+    // --- KALKULASI AKHIR ---
+    // Sekarang 'masuk' sudah bersih dari Tarik Dana Shopee sesuai instruksi Anda
     const pendapatanFinal = (masuk - totalRefund) + (totalTagihanTerfilter - totalDPTerfilter);
     const labaKotor = masuk - (keluar + totalRefund);
 
-    // Update UI Dashboard
     if (document.getElementById('totalMasuk')) document.getElementById('totalMasuk').innerText = formatIDR(pendapatanFinal);
     if (document.getElementById('totalKeluar')) document.getElementById('totalKeluar').innerText = formatIDR(keluar); 
     
