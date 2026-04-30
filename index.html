@@ -683,14 +683,33 @@ function renderLabaRugi() {
     const startTime = startInput ? new Date(startInput).getTime() : -Infinity;
     const endTime = endInput ? new Date(endInput).setHours(23, 59, 59, 999) : Infinity;
 
-    // 2. HITUNG PIUTANG (Hanya periode ini)
+   // 2. HITUNG PIUTANG (Logika Baru dengan Sinkronisasi Shopee)
     if (db.piutang) {
         db.piutang.forEach(p => {
             const pDate = new Date(p["Waktu"]).getTime();
             if (!isNaN(pDate) && pDate >= startTime && pDate <= endTime) {
                 const totalTagihan = parseFloat(p["Total Tagihan"]) || 0;
                 const dp = parseFloat(p["DP"]) || 0;
-                sisaPiutangPeriodeIni += (totalTagihan - dp);
+                const namaPelanggan = (p["Nama Pelanggan"] || "").toUpperCase().trim();
+                
+                // CEK APAKAH SUDAH ADA TRANSAKSI SHOPEE UNTUK PIUTANG INI
+                // Kita cari di db.transaksi apakah ada Subjek yang sama dengan Nama Pelanggan
+                // dan memiliki indikator bahwa dana sudah masuk ke Shopee (misal nilai Masuk = 0)
+                const isPaidViaShopee = db.transaksi.some(t => {
+                    const subjek = (t["Subjek"] || "").toUpperCase().trim();
+                    const masuk = parseFloat(t["Masuk"]) || 0;
+                    // Syarat: Subjek cocok (ID Pesanan) DAN nilai masuk 0 (karena dana masuk di Shopee Income)
+                    return subjek === namaPelanggan && masuk === 0;
+                });
+
+                if (isPaidViaShopee) {
+                    // Jika dibayar via shopee, sisa piutang tidak ditambah ke omset kotor
+                    // karena uangnya akan dihitung dari db.shopee_income agar lebih akurat (sudah dipotong admin)
+                    sisaPiutangPeriodeIni += 0; 
+                } else {
+                    // Jika belum lunas atau cicilan tunai, hitung sisa piutangnya sebagai omset
+                    sisaPiutangPeriodeIni += (totalTagihan - dp);
+                }
             }
         });
     }
