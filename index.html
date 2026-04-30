@@ -667,6 +667,7 @@ function renderLabaRugi() {
     // 1. Inisialisasi Variabel
     let pendapatanTunai = 0;
     let sisaPiutangPeriodeIni = 0;
+    let omzetTerbayarShopee = 0;
     let totalUtangBaru = 0; // Utang belanja baru (pengurang laba)[cite: 1]
     let bebanOperasional = 0;
     let pengembalian = 0;
@@ -690,31 +691,34 @@ function renderLabaRugi() {
         return parseFloat(String(val).replace(/[^\d.-]/g, '')) || 0;
     };
 
+const allShopeeData = [...(db.shopee_income || []), ...(db.shopee_income2 || [])];
+    
     // 3. HITUNG PIUTANG (Logika Sinkronisasi Shopee)[cite: 1]
-    if (db.piutang) {
-        db.piutang.forEach(p => {
-            const pDate = new Date(p["Waktu"]).getTime();
-            if (!isNaN(pDate) && pDate >= startTime && pDate <= endTime) {
-                const totalTagihan = parseAmount(p["Total Tagihan"]);
-                const dp = parseAmount(p["DP"]);
-                const namaPelanggan = (p["Nama Pelanggan"] || "").toUpperCase().trim();
-                
-                // CEK APAKAH SUDAH ADA TRANSAKSI SHOPEE UNTUK PIUTANG INI[cite: 1]
-                const isPaidViaShopee = db.transaksi.some(t => {
-                    const subjek = (t["Subjek"] || "").toUpperCase().trim();
-                    const masuk = parseAmount(t["Masuk"]);
-                    // Syarat: Subjek cocok (ID Pesanan) DAN nilai masuk 0 (karena dana masuk di Shopee Income)
-                    return subjek === namaPelanggan && masuk === 0;
+   if (db.piutang) {
+    db.piutang.forEach(p => {
+        const pDate = new Date(p["Waktu"]).getTime();
+        
+        if (!isNaN(pDate) && pDate >= startTime && pDate <= endTime) {
+            const totalTagihan = parseAmount(p["Total Tagihan"]);
+            const dp = parseAmount(p["DP"]);
+            const sisa = totalTagihan - dp;
+            sisaPiutangPeriodeIni += sisa;
+
+            // Cari apakah sisa ini dibayar via Shopee
+                const namaPelanggan = (p["Nama Pelanggan"] || "").toUpperCase();
+                const matchShopee = allShopeeData.find(s => {
+                    const noPesanan = (s['No. Pesanan'] || s.no_pesanan || "").toUpperCase();
+                    return noPesanan !== "" && namaPelanggan.includes(noPesanan);
                 });
 
-                if (!isPaidViaShopee) {
-                    // Jika belum lunas via Shopee, hitung sisa piutangnya sebagai omset accrual[cite: 1]
-                    sisaPiutangPeriodeIni += (totalTagihan - dp);
+                if (matchShopee) {
+                    // Simpan nilai bruto Shopee yang harus dikurangi dari kategori Shopee
+                    // agar tidak double count dengan Sisa Piutang
+                    omzetTerbayarShopee += parseAmount(matchShopee['Bruto'] || matchShopee.omzet_bruto);
                 }
-            }
-        });
-    }
-
+        }
+    });
+}
     // 4. HITUNG UTANG BARU (Sebagai Pengurang Laba)[cite: 1]
 if (db.utang) {
         db.utang.forEach(u => {
@@ -779,14 +783,16 @@ if (db.utang) {
     processShopee(db.shopee_income, 1);
     processShopee(db.shopee_income2, 2);
 
+    const omzetShopeeFinal = (omzetShopee1 + omzetShopee2) - omzetTerbayarShopee;
+
     // 7. KALKULASI AKHIR
     const totalOmzetShopee = omzetShopee1 + omzetShopee2;
     const totalPotonganShopee = potonganShopee1 + potonganShopee2;
-    
-    const pendapatanKotorTotal = pendapatanTunai + sisaPiutangPeriodeIni + totalOmzetShopee;
-    // Total Beban termasuk Utang Belanja Baru[cite: 1]
-    const totalBebanGabungan = bebanOperasional + totalPotonganShopee + totalUtangBaru + pengembalian;
-    const labaBersih = pendapatanKotorTotal - totalBebanGabungan;
+
+const pendapatanKotorTotal = pendapatanTunai + sisaPiutangPeriodeIni + omzetShopeeFinal;
+    const totalBeban = bebanOperasional + potonganShopee1 + potonganShopee2 + totalUtangBaru + pengembalian;
+    const labaBersih = pendapatanKotorTotal - totalBeban;
+
 
     // 8. RENDER TAMPILAN
     container.innerHTML = `
@@ -799,12 +805,8 @@ if (db.utang) {
                 <span class="text-sm font-medium text-slate-900">${formatIDR(pendapatanTunai)}</span>
             </div>
             <div class="flex justify-between border-b border-slate-100 pb-2">
-                <span class="text-sm text-slate-600">Shopee 1 (Bruto)</span>
-                <span class="text-sm font-medium text-orange-600">${formatIDR(omzetShopee1)}</span>
-            </div>
-            <div class="flex justify-between border-b border-slate-100 pb-2">
-                <span class="text-sm text-slate-600">Shopee 2 (Bruto)</span>
-                <span class="text-sm font-medium text-orange-600">${formatIDR(omzetShopee2)}</span>
+                <span class="text-sm text-slate-600">Omset Shopee Murni (Non-Piutang)</span>
+                <span class="text-sm font-medium text-orange-600">${formatIDR(omzetShopeeFinal)}</span>
             </div>
             <div class="flex justify-between border-b border-slate-100 pb-2">
                 <span class="text-sm text-slate-600">Piutang Pelanggan</span>
