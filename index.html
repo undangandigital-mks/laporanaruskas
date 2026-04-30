@@ -703,19 +703,26 @@ function renderLabaRugi() {
             const sisa = totalTagihan - dp;
             sisaPiutangPeriodeIni += sisa;
 
-            // CARI DI DB.TRANSAKSI: Subjek sama & Jumlah = 0
-                const namaPelanggan = (p["Nama Pelanggan"] || "").toUpperCase().trim();
-                const lunasDiTransaksi = db.transaksi && db.transaksi.find(t => {
-                    const subjek = (t["Subjek"] || "").toUpperCase().trim();
-                    const jumlah = parseAmount(t["Jumlah"]);
-                    return subjek === namaPelanggan && jumlah === 0;
-                });
+// CARI DI DB.TRANSAKSI: Subjek sama, Jumlah = 0, dan Metode = "Shopee"
+const namaPelanggan = (p["Nama Pelanggan"] || "").toUpperCase().trim();
 
-                if (lunasDiTransaksi) {
-                    // Jika ditemukan transaksi bernilai 0 dengan nama yang sama,
-                    // maka sisa piutang ini dianggap sudah masuk ke data Shopee
-                    piutangTerbayarViaShopee += sisa;
-                }
+const lunasDiTransaksi = db.transaksi && db.transaksi.find(t => {
+    const subjek = (t["Subjek"] || "").toUpperCase().trim();
+    const jumlah = parseAmount(t["Jumlah"]);
+    // Tambahkan variabel metode (case-insensitive untuk keamanan)
+    const metode = (t["Metode"] || "").toUpperCase().trim();
+
+    return subjek === namaPelanggan && 
+           jumlah === 0 && 
+           metode === "SHOPEE"; // Syarat tambahan
+});
+
+if (lunasDiTransaksi) {
+    // Jika ditemukan transaksi bernilai 0, nama cocok, dan metode adalah Shopee
+    // maka sisa piutang ini dianggap sudah masuk ke data Shopee
+    piutangTerbayarViaShopee += sisa;
+}
+            
         }
     });
 }
