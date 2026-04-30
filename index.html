@@ -863,84 +863,103 @@ function renderLaporanKas() {
         saldoAwal: 0, penjualanLangsung: 0, cicilanPiutang: 0,
         pembelian: 0, operasional: 0, bayarUtang: 0,
         totalShopee: 0, shopeeSummary: { "tarik dana shopee1": 0, "tarik dana shopee2": 0 },
-        cash: 0, rekening: 0, saldo: 0, sisaPiutang: 0, sisaUtang: 0
+        cash: 0, rekening: 0, saldo: 0, sisaPiutang: 0, sisaUtang: 0,
+        shopeeBelumTarik1: 0, shopeeBelumTarik2: 0 // Penampung dana yang masih mengendap di Shopee
     };
 
     barangTerjualMap = {};
     grandTotalQty = 0;
     grandTotalOmset = 0;
 
-    // 1. Process Transaksi
-db.transaksi.forEach(row => {
-    const masuk = parseFloat(row["Masuk"]) || 0;
-    const keluar = parseFloat(row["Keluar"]) || 0;
-    const kategori = String(row["Kategori"] || "").toLowerCase().trim();
-    const keterangan = String(row["Keterangan"] || "").toLowerCase().trim();
-    const metode = String(row["Metode"] || "cash").toLowerCase();
+    // --- 1. HITUNG DANA SHOPEE BELUM DITARIK ---
+    // Mengambil total Net Income dari database Shopee (jika ada)[cite: 1]
+    const hitungNetIncome = (dbArray) => {
+        if (!dbArray || !Array.isArray(dbArray)) return 0;
+        return dbArray.reduce((acc, curr) => acc + (parseFloat(curr['Net Income'] || curr.net_income) || 0), 0);
+    };
 
-    // --- LOGIKA BARANG (Tetap hitung walau masuk = 0) ---
-    if (kategori === "penjualan" && row["Detail JSON"]) {
-        try {
-            const items = JSON.parse(row["Detail JSON"]);
-            if (Array.isArray(items)) {
-                items.forEach(item => {
-                    const namaAsli = item.nama || "Tanpa Nama";
-                    const namaKey = namaAsli.toLowerCase(); 
-                    const qty = parseFloat(item.qty) || 0;
-                    const harga = parseFloat(item.harga) || 0;
-                    const subtotal = qty * harga;
+    const totalIncomeS1 = hitungNetIncome(db.shopee_income);
+    const totalIncomeS2 = hitungNetIncome(db.shopee_income2);
 
-                    if (!barangTerjualMap[namaKey]) {
-                        barangTerjualMap[namaKey] = { tampilan: namaAsli, qty: 0, omset: 0 };
-                    }
-                    
-                    barangTerjualMap[namaKey].qty += qty;
-                    barangTerjualMap[namaKey].omset += subtotal;
-                    grandTotalQty += qty;
-                    grandTotalOmset += subtotal;
-                });
-            }
-        } catch (e) { /* silent */ }
-    }
+    // --- 2. PROCESS TRANSAKSI KAS ---
+    db.transaksi.forEach(row => {
+        const masuk = parseFloat(row["Masuk"]) || 0;
+        const keluar = parseFloat(row["Keluar"]) || 0;
+        const kategori = String(row["Kategori"] || "").toLowerCase().trim();
+        const keterangan = String(row["Keterangan"] || "").toLowerCase().trim();
+        const metode = String(row["Metode"] || "cash").toLowerCase();
 
-    // --- LOGIKA KAS (Uang Masuk) ---
-    if (masuk > 0) {
-        if (kategori === "saldo awal") {
-            data.saldoAwal += masuk;
-        } else if (kategori === "penjualan") {
-            data.penjualanLangsung += masuk;
+        // Logika Barang (Tetap diproses)
+        if (kategori === "penjualan" && row["Detail JSON"]) {
+            try {
+                const items = JSON.parse(row["Detail JSON"]);
+                if (Array.isArray(items)) {
+                    items.forEach(item => {
+                        const namaAsli = item.nama || "Tanpa Nama";
+                        const namaKey = namaAsli.toLowerCase(); 
+                        const qty = parseFloat(item.qty) || 0;
+                        const harga = parseFloat(item.harga) || 0;
+                        const subtotal = qty * harga;
 
-            if (keterangan === "tarik dana shopee1" || keterangan === "tarik dana shopee2") {
-                data.totalShopee += masuk;
-                data.shopeeSummary[keterangan] += masuk;
-                data.penjualanLangsung -= masuk;
-            }
-        } else if (kategori === "cicilan piutang") {
-            data.cicilanPiutang += masuk;
+                        if (!barangTerjualMap[namaKey]) {
+                            barangTerjualMap[namaKey] = { tampilan: namaAsli, qty: 0, omset: 0 };
+                        }
+                        barangTerjualMap[namaKey].qty += qty;
+                        barangTerjualMap[namaKey].omset += subtotal;
+                        grandTotalQty += qty;
+                        grandTotalOmset += subtotal;
+                    });
+                }
+            } catch (e) { }
         }
-    }
-    
-    // --- LOGIKA KAS (Uang Keluar) ---
-    if (keluar > 0) {
-        if (kategori === "operasional") data.operasional += keluar;
-        else if (kategori === "pembelian") data.pembelian += keluar;
-        else if (kategori === "bayar utang") data.bayarUtang += keluar;
-    }
 
-    // Update Saldo Kas/Bank
-    const netto = masuk - keluar;
-    if (metode.includes("rek") || metode.includes("bank") || metode.includes("tf")) data.rekening += netto;
-    else data.cash += netto;
-    data.saldo += netto;
-});
+        // Logika Uang Masuk
+        if (masuk > 0) {
+            if (kategori === "saldo awal") data.saldoAwal += masuk;
+            else if (kategori === "penjualan") {
+                data.penjualanLangsung += masuk;
+                // Jika keterangan mengandung 'tarik dana', pindahkan dari penjualan toko ke total shopee
+                if (keterangan.includes("tarik dana shopee1")) {
+                    data.totalShopee += masuk;
+                    data.shopeeSummary["tarik dana shopee1"] += masuk;
+                    data.penjualanLangsung -= masuk;
+                } else if (keterangan.includes("tarik dana shopee2")) {
+                    data.totalShopee += masuk;
+                    data.shopeeSummary["tarik dana shopee2"] += masuk;
+                    data.penjualanLangsung -= masuk;
+                }
+            } else if (kategori === "cicilan piutang") data.cicilanPiutang += masuk;
+        }
+        
+        // Logika Uang Keluar
+        if (keluar > 0) {
+            if (kategori === "operasional") data.operasional += keluar;
+            else if (kategori === "pembelian") data.pembelian += keluar;
+            else if (kategori === "bayar utang") data.bayarUtang += keluar;
+        }
+
+        const netto = masuk - keluar;
+        if (metode.includes("rek") || metode.includes("bank") || metode.includes("tf")) data.rekening += netto;
+        else data.cash += netto;
+        data.saldo += netto;
+    });
+
+    // Kalkulasi sisa dana Shopee (Income - Yang sudah ditarik ke kas)[cite: 1]
+    data.shopeeBelumTarik1 = Math.max(0, totalIncomeS1 - data.shopeeSummary["tarik dana shopee1"]);
+    data.shopeeBelumTarik2 = Math.max(0, totalIncomeS2 - data.shopeeSummary["tarik dana shopee2"]);
     
-    db.piutang.forEach(row => { data.sisaPiutang += parseFloat(row["Sisa Piutang"] || row["Sisa"] || 0); });
-    db.utang.forEach(row => { data.sisaUtang += parseFloat(row["Sisa Utang"] || row["Total Utang"] || row["Sisa"] || 0); });
+    // Hitung Piutang & Utang (Pembersihan kolom)
+    db.piutang.forEach(row => { data.sisaPiutang += parseFloat(row["Sisa Piutang"] || 0); });
+    db.utang.forEach(row => { data.sisaUtang += parseFloat(row["Sisa Utang"] || 0); });
+
+    // --- 3. HITUNG ESTIMASI TOTAL ASET ---
+    // Rumus: Saldo Kas Aktif + Piutang + Saldo Shopee - Utang[cite: 1]
+    const totalAset = data.saldo + data.sisaPiutang + (data.shopeeBelumTarik1 + data.shopeeBelumTarik2) - data.sisaUtang;
 
     const totalPendapatanB = data.penjualanLangsung + data.cicilanPiutang + data.totalShopee;
     const totalPengeluaranC = data.operasional + data.pembelian + data.bayarUtang;
 
-    // 2. Render Summary & Tombol Export
+    // --- 4. RENDER TAMPILAN ---
     if (summaryContainer) {
         summaryContainer.innerHTML = `
             <div class="flex items-center justify-between w-full mb-2">
@@ -955,21 +974,27 @@ db.transaksi.forEach(row => {
         `;
     }
 
-    // 3. Render Kolom Kiri: Laporan Kas
     container.innerHTML = `
         <div class="space-y-3 animate-fade">
-            <div class="bg-gradient-to-br from-slate-800 to-slate-950 p-5 rounded-[2rem] text-white shadow-xl text-center">
-                <p class="text-[9px] font-bold uppercase opacity-50 mb-0.5 tracking-widest">Saldo Kas Aktif</p>
-                <h2 class="text-3xl font-black">${formatIDR(data.saldo)}</h2>
-                <div class="mt-4 pt-3 border-t border-white/10 grid grid-cols-2">
-                    <div class="border-r border-white/10">
-                        <p class="text-[8px] opacity-50 uppercase">Tunai</p>
-                        <p class="text-xs font-bold">${formatIDR(data.cash)}</p>
-                    </div>
-                    <div>
-                        <p class="text-[8px] opacity-50 uppercase">Rekening</p>
-                        <p class="text-xs font-bold">${formatIDR(data.rekening)}</p>
-                    </div>
+            <!-- Kartu Utama: Total Aset -->
+            <div class="bg-gradient-to-br from-blue-600 to-blue-900 p-5 rounded-[2rem] text-white shadow-xl text-center">
+                <p class="text-[9px] font-bold uppercase opacity-70 mb-0.5 tracking-widest">Estimasi Total Aset Bisnis</p>
+                <h2 class="text-3xl font-black">${formatIDR(totalAset)}</h2>
+                <div class="mt-4 pt-3 border-t border-white/10 grid grid-cols-2 text-[8px] uppercase opacity-60">
+                    <div class="border-r border-white/10 italic">Kas + Piutang + Shopee</div>
+                    <div class="italic">Dikurangi Utang</div>
+                </div>
+            </div>
+
+            <!-- Detail Saldo Kas -->
+            <div class="bg-slate-900 p-4 rounded-[1.5rem] text-white grid grid-cols-2 gap-4">
+                <div class="text-center border-r border-white/10">
+                    <p class="text-[8px] opacity-50 uppercase font-bold">Tunai (Cash)</p>
+                    <p class="text-xs font-bold text-emerald-400">${formatIDR(data.cash)}</p>
+                </div>
+                <div class="text-center">
+                    <p class="text-[8px] opacity-50 uppercase font-bold">Rekening (Bank)</p>
+                    <p class="text-xs font-bold text-blue-400">${formatIDR(data.rekening)}</p>
                 </div>
             </div>
 
@@ -977,39 +1002,35 @@ db.transaksi.forEach(row => {
                 <table class="w-full text-left border-collapse">
                     <tbody class="divide-y divide-slate-50">
                         <tr class="bg-slate-800 text-white">
-                            <td class="px-4 py-2.5 text-[10px] uppercase font-black">Saldo Awal (A)</td>
-                            <td class="px-4 py-2.5 text-right text-xs font-black">${formatIDR(data.saldoAwal)}</td>
+                            <td class="px-4 py-2.5 text-[10px] uppercase font-black">Laporan Arus Kas</td>
+                            <td class="px-4 py-2.5 text-right text-xs font-black"></td>
                         </tr>
                         <tr>
-                            <td class="px-5 py-1.5 text-[11px] text-slate-600 italic">Penjualan Toko</td>
+                            <td class="px-5 py-1.5 text-[11px] text-slate-600 italic">Saldo Awal (A)</td>
+                            <td class="px-4 py-1.5 text-right text-[11px] font-bold text-slate-800">${formatIDR(data.saldoAwal)}</td>
+                        </tr>
+                        <tr>
+                            <td class="px-5 py-1.5 text-[11px] text-slate-600">Penjualan Langsung Toko</td>
                             <td class="px-4 py-1.5 text-right text-[11px] font-bold text-slate-800">${formatIDR(data.penjualanLangsung)}</td>
                         </tr>
                         <tr>
-                            <td class="px-5 py-1.5 text-[11px] text-orange-600 font-bold italic">Tarik Dana Shopee</td>
+                            <td class="px-5 py-1.5 text-[11px] text-orange-600 font-bold">Penarikan Shopee (Masuk Kas)</td>
                             <td class="px-4 py-1.5 text-right text-[11px] font-black text-orange-600">${formatIDR(data.totalShopee)}</td>
                         </tr>
-                        <tr class="bg-orange-50/20">
-                            <td colspan="2" class="pl-10 pr-4 py-1 text-[10px] border-l-2 border-orange-100 uppercase">
-                                <span class="text-slate-400 font-medium italic">Shopee1: </span>
-                                <span class="text-slate-500 font-bold ml-1">${formatIDR(data.shopeeSummary["tarik dana shopee1"])}</span>
-                            </td>
-                        </tr>
-                        <tr class="bg-orange-50/20">
-                            <td colspan="2" class="pl-10 pr-4 py-1 text-[10px] border-l-2 border-orange-100 uppercase">
-                                <span class="text-slate-400 font-medium italic">Shopee2: </span>
-                                <span class="text-slate-500 font-bold ml-1">${formatIDR(data.shopeeSummary["tarik dana shopee2"])}</span>
-                            </td>
+                        <tr class="bg-orange-50/30">
+                            <td class="px-5 py-1.5 text-[11px] text-slate-500 font-bold italic">Dana Shopee Belum Ditarik</td>
+                            <td class="px-4 py-1.5 text-right text-[11px] font-black text-orange-700">${formatIDR(data.shopeeBelumTarik1 + data.shopeeBelumTarik2)}</td>
                         </tr>
                         <tr>
                             <td class="px-5 py-1.5 text-[11px] text-slate-600">Cicilan Piutang</td>
                             <td class="px-4 py-1.5 text-right text-[11px] font-bold text-slate-800">${formatIDR(data.cicilanPiutang)}</td>
                         </tr>
                         <tr class="bg-blue-600 text-white font-bold">
-                            <td class="px-5 py-2 text-[9px] uppercase text-right tracking-widest">Total Pendapatan (B)</td>
+                            <td class="px-5 py-2 text-[9px] uppercase text-right tracking-widest">Total Uang Masuk (B)</td>
                             <td class="px-4 py-2 text-right text-xs font-black">${formatIDR(totalPendapatanB)}</td>
                         </tr>
                         <tr>
-                            <td class="px-6 py-2 text-xs text-red-600 font-medium italic">Operasional</td>
+                            <td class="px-6 py-2 text-xs text-red-600 font-medium italic">Biaya Operasional</td>
                             <td class="px-4 py-2 text-right text-xs font-bold text-red-600">-${formatIDR(data.operasional)}</td>
                         </tr>
                         <tr>
@@ -1028,22 +1049,22 @@ db.transaksi.forEach(row => {
                 </table>
             </div>
 
+            <!-- Hutang Piutang -->
             <div class="grid grid-cols-2 gap-3">
                 <div class="bg-white p-3 rounded-[1.2rem] border border-slate-100 shadow-sm text-center">
-                    <p class="text-[8px] font-black text-slate-400 uppercase tracking-widest">Piutang</p>
-                    <p class="text-xs font-black text-red-500">${formatIDR(data.sisaPiutang)}</p>
+                    <p class="text-[8px] font-black text-slate-400 uppercase tracking-widest">Piutang Pelanggan</p>
+                    <p class="text-xs font-black text-blue-600">${formatIDR(data.sisaPiutang)}</p>
                 </div>
                 <div class="bg-white p-3 rounded-[1.2rem] border border-slate-100 shadow-sm text-center">
-                    <p class="text-[8px] font-black text-slate-400 uppercase tracking-widest">Utang</p>
-                    <p class="text-xs font-black text-orange-600">${formatIDR(data.sisaUtang)}</p>
+                    <p class="text-[8px] font-black text-slate-400 uppercase tracking-widest">Hutang Supplier</p>
+                    <p class="text-xs font-black text-red-600">${formatIDR(data.sisaUtang)}</p>
                 </div>
             </div>
         </div>
     `;
 
-    // 4. Render Kolom Kanan: Daftar Barang Terjual
+    // Render Kolom Kanan (Barang Terjual) tetap seperti sebelumnya...
     const sortedBarang = Object.entries(barangTerjualMap).sort((a, b) => b[1].qty - a[1].qty);
-
     if (barangContainer) {
         if (sortedBarang.length > 0) {
             barangContainer.innerHTML = `
@@ -1072,7 +1093,9 @@ db.transaksi.forEach(row => {
     }
 }
 
-        function exportBarangToExcel() {
+
+
+function exportBarangToExcel() {
     // 1. Ambil data barangTerjualMap yang sudah diolah
     // Kita perlu menjalankan ulang logika pengambilan data atau 
     // pastikan barangTerjualMap bersifat global.
