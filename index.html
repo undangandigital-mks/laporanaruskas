@@ -672,13 +672,13 @@ function renderLabaRugi() {
     let pengembalian = 0;
     let pelunasanPiutangViaShopee = 0;
     
-    // Variabel Shopee
+    // Variabel Khusus Shopee (Akun 1 & 2)
     let omzetShopee1 = 0;
     let potonganShopee1 = 0;
     let omzetShopee2 = 0;
     let potonganShopee2 = 0;
 
-    // 2. Filter Tanggal
+    // 2. Ambil Filter Tanggal
     const startInput = document.getElementById('lrDateStart').value;
     const endInput = document.getElementById('lrDateEnd').value;
     const startTime = startInput ? new Date(startInput).getTime() : -Infinity;
@@ -691,7 +691,7 @@ function renderLabaRugi() {
         return parseFloat(String(val).replace(/[^\d.-]/g, '')) || 0;
     };
 
-    // 3. HITUNG PIUTANG (Omset Accrual)
+    // 3. HITUNG PIUTANG (Sebagai Omset Accrual Periode Ini)
     if (db.piutang) {
         db.piutang.forEach(p => {
             const pDate = new Date(p["Waktu"]).getTime();
@@ -704,7 +704,7 @@ function renderLabaRugi() {
     }
 
     // 4. HITUNG UTANG (Sebagai Beban Pengurang Laba)
-    // Sesuai instruksi: Total Tagihan dianggap beban periode berjalan
+    // Diambil dari Total Tagihan pada database utang sesuai instruksi[cite: 1]
     if (db.utang) {
         db.utang.forEach(u => {
             const uDate = new Date(u["Waktu"]).getTime();
@@ -714,7 +714,7 @@ function renderLabaRugi() {
         });
     }
 
-    // 5. PROSES DATA SHOPEE (Dengan Filter No. Pesanan di Piutang)
+    // 5. PROSES DATA SHOPEE (Sinkronisasi dengan No. Pesanan di Piutang)
     const processShopee = (dataArray, target) => {
         if (dataArray && Array.isArray(dataArray)) {
             dataArray.forEach(s => {
@@ -728,6 +728,7 @@ function renderLabaRugi() {
                     const potongan = parseAmount(s['Potongan'] || s.total_potongan);
                     const noPesananShopee = (s['No. Pesanan'] || s.id_pesanan || "").toUpperCase().trim();
 
+                    // Cek apakah No Pesanan ini sudah masuk ke data Piutang agar tidak double[cite: 1]
                     let pengurangPiutang = 0;
                     if (db.piutang) {
                         db.piutang.forEach(p => {
@@ -764,7 +765,7 @@ function renderLabaRugi() {
             const cat = (r["Kategori"] || "").toLowerCase().trim();
             const ket = (r["Keterangan"] || "").toLowerCase().trim();
 
-            // Pengecualian internal & Shopee
+            // Pengecualian Transfer Internal & Tarik Dana
             if (["transfer saldo", "saldo awal"].some(ex => cat.includes(ex)) || ket.includes("tarik dana shopee")) {
                 return; 
             }
@@ -803,7 +804,7 @@ function renderLabaRugi() {
             <!-- Ringkasan Omzet -->
             <div class="bg-white p-3 rounded-xl border border-slate-100 shadow-sm space-y-2">
                 <div class="flex justify-between text-xs">
-                    <span class="text-slate-500">Penjualan + Piutang</span>
+                    <span class="text-slate-500">Penjualan + Piutang Toko</span>
                     <span class="font-bold text-slate-700">${formatIDR(pendapatanTunai + sisaPiutangPeriodeIni)}</span>
                 </div>
                 <div class="flex justify-between text-xs">
@@ -827,7 +828,7 @@ function renderLabaRugi() {
                     <span>-${formatIDR(totalPotonganShopee)}</span>
                 </div>
                 <div class="flex justify-between text-[11px] text-amber-700 font-bold">
-                    <span>Utang Belanja (Total Tagihan)</span>
+                    <span>Utang Belanja (Beban Pembelian)</span>
                     <span>-${formatIDR(totalKewajibanUtang)}</span>
                 </div>
                 <div class="flex justify-between text-[11px] text-red-500 italic">
@@ -837,13 +838,16 @@ function renderLabaRugi() {
             </div>
 
             <!-- Laba Bersih Final -->
-            <div class="p-5 rounded-2xl ${labaBersih >= 0 ? 'bg-blue-600 text-white' : 'bg-red-600 text-white'} shadow-xl">
-                <p class="text-[10px] font-bold uppercase opacity-80">Laba Bersih Setelah Pajak & Utang</p>
-                <h3 class="text-3xl font-black mt-1">${formatIDR(labaBersih)}</h3>
+            <div class="p-5 rounded-2xl ${labaBersih >= 0 ? 'bg-blue-600 text-white' : 'bg-red-600 text-white'} shadow-xl relative overflow-hidden">
+                <div class="relative z-10">
+                    <p class="text-[10px] font-bold uppercase opacity-80">Laba Bersih Final</p>
+                    <h3 class="text-3xl font-black mt-1">${formatIDR(labaBersih)}</h3>
+                </div>
+                <i class="fas ${labaBersih >= 0 ? 'fa-wallet' : 'fa-exclamation-triangle'} absolute right-4 bottom-2 text-6xl opacity-20"></i>
             </div>
             
             <p class="text-[9px] text-center text-slate-400 italic">
-                *Sisa utang (total tagihan) langsung memotong laba sebagai beban pembelian[cite: 1].
+                Sisa utang (total tagihan) kini dihitung sebagai beban yang langsung mengurangi laba operasional[cite: 1].
             </p>
         </div>
     `;
