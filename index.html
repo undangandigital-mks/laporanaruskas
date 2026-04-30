@@ -1079,8 +1079,8 @@ function renderLaporanKas() {
             <p class="text-xs font-black text-red-600">${formatIDR(data.sisaUtang)}</p>
         </div>
     </div>
-</div>
-
+        </div>
+    `;
 
     // Render Kolom Kanan (Barang Terjual) tetap seperti sebelumnya...
     const sortedBarang = Object.entries(barangTerjualMap).sort((a, b) => b[1].qty - a[1].qty);
