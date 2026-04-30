@@ -716,11 +716,15 @@ function renderLabaRugi() {
     }
 
     // 4. HITUNG UTANG BARU (Sebagai Pengurang Laba)[cite: 1]
-    if (db.utang) {
+if (db.utang) {
         db.utang.forEach(u => {
             const uDate = new Date(u["Waktu"]).getTime();
             if (!isNaN(uDate) && uDate >= startTime && uDate <= endTime) {
-                totalUtangBaru += parseAmount(u["Total Tagihan"]);
+                const totalTagihan = parseAmount(u["Total Tagihan"]);
+                const dp = parseAmount(u["DP"]); // Mengambil nilai DP
+                
+                // Menghitung sisa utang yang belum dibayar saat transaksi dibuat
+                totalUtangBaru += (totalTagihan - dp);
             }
         });
     }
